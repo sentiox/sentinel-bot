@@ -113,8 +113,13 @@ fi
 
 # Install pip packages
 info "Installing Python packages (this may take a minute)..."
-"$INSTALL_DIR/venv/bin/pip" install --upgrade pip < /dev/null 2>&1 | tail -1 || true
-"$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" < /dev/null 2>&1 | tail -3 || die "Failed to install packages"
+"$INSTALL_DIR/venv/bin/pip" install --upgrade pip < /dev/null >/dev/null 2>&1 || true
+"$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" < /dev/null >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    err "pip install failed, retrying with verbose output..."
+    "$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" < /dev/null 2>&1
+    [ $? -ne 0 ] && die "Failed to install packages"
+fi
 ok "Python packages installed"
 
 # Configure
