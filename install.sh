@@ -39,7 +39,7 @@ warn() { printf "${YELLOW}[!]${NC} %s\n" "$1"; }
 err()  { printf "${RED}[X]${NC} %s\n" "$1"; }
 
 ask() {
-    printf "${WHITE}%s${NC}" "$1"
+    printf "${WHITE}%s${NC}" "$1" > /dev/tty
     read -r ANSWER < /dev/tty
     echo "$ANSWER"
 }
