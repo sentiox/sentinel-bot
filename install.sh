@@ -86,7 +86,7 @@ clone_repo() {
     if [ -d "$INSTALL_DIR" ]; then
         print_warn "Directory $INSTALL_DIR already exists"
         printf "${YELLOW}Overwrite? (y/n): ${NC}"
-        read -r REPLY
+        read -r REPLY < /dev/tty
         if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
             rm -rf "$INSTALL_DIR"
         else
@@ -123,12 +123,12 @@ configure_bot() {
     printf "   3. Copy the token\n"
     printf "\n"
     printf "${WHITE}   Enter Bot Token: ${NC}"
-    read -r BOT_TOKEN
+    read -r BOT_TOKEN < /dev/tty
 
     while [ -z "$BOT_TOKEN" ]; do
         print_error "   Token cannot be empty!"
         printf "${WHITE}   Enter Bot Token: ${NC}"
-        read -r BOT_TOKEN
+        read -r BOT_TOKEN < /dev/tty
     done
     printf "\n"
 
@@ -137,12 +137,12 @@ configure_bot() {
     printf "   Get from @userinfobot or @getmyid_bot\n"
     printf "\n"
     printf "${WHITE}   Enter Telegram ID: ${NC}"
-    read -r ADMIN_ID
+    read -r ADMIN_ID < /dev/tty
 
     while [ -z "$ADMIN_ID" ]; do
         print_error "   ID cannot be empty!"
         printf "${WHITE}   Enter Telegram ID: ${NC}"
-        read -r ADMIN_ID
+        read -r ADMIN_ID < /dev/tty
     done
     printf "\n"
 
@@ -152,7 +152,7 @@ configure_bot() {
     printf "   2) Private messages (DM)\n"
     printf "\n"
     printf "${WHITE}   Choose (1/2): ${NC}"
-    read -r MODE_CHOICE
+    read -r MODE_CHOICE < /dev/tty
 
     GROUP_ID=""
     if [ "$MODE_CHOICE" = "1" ]; then
@@ -166,7 +166,7 @@ configure_bot() {
         printf "   5. ID starts with -100...\n"
         printf "\n"
         printf "${WHITE}   Enter Group ID: ${NC}"
-        read -r GROUP_ID
+        read -r GROUP_ID < /dev/tty
     fi
     printf "\n"
 
