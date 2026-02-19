@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ============================================
 #  Sentinel Bot — Installer
@@ -7,48 +7,38 @@
 
 set -e
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-WHITE='\033[1;37m'
-NC='\033[0m'
-
 INSTALL_DIR="/opt/sentinel-bot"
 SERVICE_NAME="sentinel-bot"
 REPO_URL="https://github.com/sentiox/sentinel-bot.git"
 
+# Colors
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+YELLOW="\033[1;33m"
+BLUE="\033[0;34m"
+CYAN="\033[0;36m"
+WHITE="\033[1;37m"
+NC="\033[0m"
+
 print_banner() {
-    echo -e "${CYAN}"
-    echo "  ╔═══════════════════════════════════════════╗"
-    echo "  ║                                           ║"
-    echo "  ║   🛡  Sentinel Bot — Installer            ║"
-    echo "  ║   VPS Management & Monitoring             ║"
-    echo "  ║                                           ║"
-    echo "  ╚═══════════════════════════════════════════╝"
-    echo -e "${NC}"
+    printf "${CYAN}\n"
+    printf "  ╔═══════════════════════════════════════════╗\n"
+    printf "  ║                                           ║\n"
+    printf "  ║   Sentinel Bot — Installer                ║\n"
+    printf "  ║   VPS Management & Monitoring             ║\n"
+    printf "  ║                                           ║\n"
+    printf "  ╚═══════════════════════════════════════════╝\n"
+    printf "${NC}\n"
 }
 
-print_step() {
-    echo -e "${GREEN}[✓]${NC} $1"
-}
-
-print_info() {
-    echo -e "${BLUE}[i]${NC} $1"
-}
-
-print_warn() {
-    echo -e "${YELLOW}[!]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[✗]${NC} $1"
-}
+print_step()  { printf "${GREEN}[OK]${NC} %s\n" "$1"; }
+print_info()  { printf "${BLUE}[i]${NC} %s\n" "$1"; }
+print_warn()  { printf "${YELLOW}[!]${NC} %s\n" "$1"; }
+print_error() { printf "${RED}[X]${NC} %s\n" "$1"; }
 
 check_root() {
-    if [ "$EUID" -ne 0 ]; then
-        print_error "Запустите скрипт от root: sudo bash install.sh"
+    if [ "$(id -u)" -ne 0 ]; then
+        print_error "Run as root: sudo bash install.sh"
         exit 1
     fi
 }
@@ -56,24 +46,32 @@ check_root() {
 check_os() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
-        OS=$ID
-        VER=$VERSION_ID
-        print_step "Обнаружена ОС: $PRETTY_NAME"
+        OS="$ID"
+        print_step "OS: $PRETTY_NAME"
     else
-        print_error "Не удалось определить ОС. Поддерживается Ubuntu/Debian."
+        print_error "Cannot detect OS"
         exit 1
-    fi
-
-    if [[ "$OS" != "ubuntu" && "$OS" != "debian" ]]; then
-        print_warn "ОС $OS не тестировалась. Продолжаем..."
     fi
 }
 
 install_dependencies() {
-    print_info "Устанавливаем зависимости..."
-    apt-get update -qq
-    apt-get install -y -qq python3 python3-pip python3-venv git wget curl > /dev/null 2>&1
-    print_step "Зависимости установлены"
+    print_info "Installing dependencies..."
+
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq >/dev/null 2>&1
+        apt-get install -y -qq python3 python3-pip python3-venv git wget curl >/dev/null 2>&1
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y -q python3 python3-pip git wget curl >/dev/null 2>&1
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y -q python3 python3-pip git wget curl >/dev/null 2>&1
+    elif command -v pacman >/dev/null 2>&1; then
+        pacman -Sy --noconfirm python python-pip git wget curl >/dev/null 2>&1
+    else
+        print_error "Unsupported package manager. Install python3, pip, git manually."
+        exit 1
+    fi
+
+    print_step "Dependencies installed"
 
     PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
     print_step "Python: $PYTHON_VERSION"
@@ -81,91 +79,94 @@ install_dependencies() {
 
 clone_repo() {
     if [ -d "$INSTALL_DIR" ]; then
-        print_warn "Директория $INSTALL_DIR уже существует"
-        read -p "$(echo -e "${YELLOW}Перезаписать? (y/n): ${NC}")" -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_warn "Directory $INSTALL_DIR already exists"
+        printf "${YELLOW}Overwrite? (y/n): ${NC}"
+        read -r REPLY
+        if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
             rm -rf "$INSTALL_DIR"
         else
-            print_error "Установка отменена"
+            print_error "Installation cancelled"
             exit 1
         fi
     fi
 
-    print_info "Клонируем репозиторий..."
+    print_info "Cloning repository..."
     git clone -q "$REPO_URL" "$INSTALL_DIR"
-    print_step "Репозиторий склонирован в $INSTALL_DIR"
+    print_step "Cloned to $INSTALL_DIR"
 }
 
 setup_venv() {
-    print_info "Создаём виртуальное окружение..."
+    print_info "Creating virtual environment..."
     python3 -m venv "$INSTALL_DIR/venv"
-    source "$INSTALL_DIR/venv/bin/activate"
-    pip install --upgrade pip -q
-    pip install -r "$INSTALL_DIR/requirements.txt" -q
-    deactivate
-    print_step "Виртуальное окружение готово"
+    "$INSTALL_DIR/venv/bin/pip" install --upgrade pip -q >/dev/null 2>&1
+    "$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" -q >/dev/null 2>&1
+    print_step "Virtual environment ready"
 }
 
 configure_bot() {
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${WHITE}  ⚙️  Настройка бота${NC}"
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
+    printf "\n"
+    printf "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+    printf "${WHITE}  Settings${NC}\n"
+    printf "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+    printf "\n"
 
     # Bot Token
-    echo -e "${YELLOW}🤖 Bot Token${NC}"
-    echo -e "   Получить у @BotFather в Telegram:"
-    echo -e "   1. Откройте @BotFather"
-    echo -e "   2. Отправьте /newbot"
-    echo -e "   3. Следуйте инструкциям"
-    echo -e "   4. Скопируйте токен"
-    echo ""
-    read -p "$(echo -e "${WHITE}   Введите Bot Token: ${NC}")" BOT_TOKEN
+    printf "${YELLOW}Bot Token${NC}\n"
+    printf "   Get from @BotFather in Telegram:\n"
+    printf "   1. Open @BotFather\n"
+    printf "   2. Send /newbot\n"
+    printf "   3. Copy the token\n"
+    printf "\n"
+    printf "${WHITE}   Enter Bot Token: ${NC}"
+    read -r BOT_TOKEN
 
     while [ -z "$BOT_TOKEN" ]; do
-        print_error "   Token не может быть пустым!"
-        read -p "$(echo -e "${WHITE}   Введите Bot Token: ${NC}")" BOT_TOKEN
+        print_error "   Token cannot be empty!"
+        printf "${WHITE}   Enter Bot Token: ${NC}"
+        read -r BOT_TOKEN
     done
-    echo ""
+    printf "\n"
 
     # Admin ID
-    echo -e "${YELLOW}👤 Ваш Telegram ID (Администратор)${NC}"
-    echo -e "   Узнать у @userinfobot или @getmyid_bot"
-    echo ""
-    read -p "$(echo -e "${WHITE}   Введите Telegram ID: ${NC}")" ADMIN_ID
+    printf "${YELLOW}Your Telegram ID (Admin)${NC}\n"
+    printf "   Get from @userinfobot or @getmyid_bot\n"
+    printf "\n"
+    printf "${WHITE}   Enter Telegram ID: ${NC}"
+    read -r ADMIN_ID
 
     while [ -z "$ADMIN_ID" ]; do
-        print_error "   ID не может быть пустым!"
-        read -p "$(echo -e "${WHITE}   Введите Telegram ID: ${NC}")" ADMIN_ID
+        print_error "   ID cannot be empty!"
+        printf "${WHITE}   Enter Telegram ID: ${NC}"
+        read -r ADMIN_ID
     done
-    echo ""
+    printf "\n"
 
     # Group or Private
-    echo -e "${YELLOW}💬 Режим работы${NC}"
-    echo -e "   1) Супергруппа с топиками (рекомендуется)"
-    echo -e "   2) Личные сообщения (ЛС)"
-    echo ""
-    read -p "$(echo -e "${WHITE}   Выберите (1/2): ${NC}")" MODE_CHOICE
+    printf "${YELLOW}Mode${NC}\n"
+    printf "   1) Supergroup with topics (recommended)\n"
+    printf "   2) Private messages (DM)\n"
+    printf "\n"
+    printf "${WHITE}   Choose (1/2): ${NC}"
+    read -r MODE_CHOICE
 
     GROUP_ID=""
     if [ "$MODE_CHOICE" = "1" ]; then
-        echo ""
-        echo -e "${YELLOW}💬 ID Супергруппы${NC}"
-        echo -e "   Как узнать Group ID:"
-        echo -e "   1. Создайте супергруппу в Telegram"
-        echo -e "   2. Включите 'Темы' в настройках группы"
-        echo -e "   3. Добавьте бота как администратора"
-        echo -e "   4. Добавьте @getmyid_bot в группу"
-        echo -e "   5. ID начинается с -100..."
-        echo ""
-        read -p "$(echo -e "${WHITE}   Введите Group ID: ${NC}")" GROUP_ID
+        printf "\n"
+        printf "${YELLOW}Supergroup ID${NC}\n"
+        printf "   How to get Group ID:\n"
+        printf "   1. Create a supergroup in Telegram\n"
+        printf "   2. Enable 'Topics' in group settings\n"
+        printf "   3. Add bot as admin\n"
+        printf "   4. Add @getmyid_bot to group\n"
+        printf "   5. ID starts with -100...\n"
+        printf "\n"
+        printf "${WHITE}   Enter Group ID: ${NC}"
+        read -r GROUP_ID
     fi
-    echo ""
+    printf "\n"
 
     # Generate .env
-    cat > "$INSTALL_DIR/.env" << EOF
+    cat > "$INSTALL_DIR/.env" << ENVEOF
 # Sentinel Bot Configuration
 # Generated: $(date '+%Y-%m-%d %H:%M:%S')
 
@@ -174,7 +175,7 @@ BOT_TOKEN=$BOT_TOKEN
 ADMIN_IDS=$ADMIN_ID
 GROUP_ID=$GROUP_ID
 
-# Topic IDs (will be auto-created by /setup_topics command)
+# Topic IDs (auto-created by /setup_topics)
 TOPIC_VPS_PANEL=
 TOPIC_PAYMENTS=
 TOPIC_BALANCE=
@@ -182,27 +183,27 @@ TOPIC_MONITORING=
 TOPIC_ADMIN=
 TOPIC_BACKUP=
 
-# Monitoring Settings
+# Monitoring
 MONITOR_INTERVAL=300
 ALERT_CPU_THRESHOLD=90
 ALERT_RAM_THRESHOLD=90
 ALERT_DISK_THRESHOLD=85
 
-# Payment Reminder Days
+# Payment Reminders
 REMINDER_DAYS=7,3,1,0
 
 # Database
 DB_PATH=$INSTALL_DIR/data/sentinel.db
-EOF
+ENVEOF
 
     mkdir -p "$INSTALL_DIR/data"
-    print_step "Конфигурация сохранена"
+    print_step "Configuration saved"
 }
 
 create_service() {
-    print_info "Создаём systemd сервис..."
+    print_info "Creating systemd service..."
 
-    cat > "/etc/systemd/system/${SERVICE_NAME}.service" << EOF
+    cat > "/etc/systemd/system/${SERVICE_NAME}.service" << SVCEOF
 [Unit]
 Description=Sentinel Bot — Telegram VPS Management
 After=network.target
@@ -218,35 +219,35 @@ Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVCEOF
 
     systemctl daemon-reload
-    systemctl enable "$SERVICE_NAME" > /dev/null 2>&1
+    systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
     systemctl start "$SERVICE_NAME"
-    print_step "Сервис создан и запущен"
+    print_step "Service created and started"
 }
 
 print_finish() {
-    echo ""
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}  ✅ Sentinel Bot успешно установлен!${NC}"
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    echo -e "  ${WHITE}📋 Полезные команды:${NC}"
-    echo -e "  ${CYAN}Логи:${NC}      journalctl -u $SERVICE_NAME -f"
-    echo -e "  ${CYAN}Статус:${NC}    systemctl status $SERVICE_NAME"
-    echo -e "  ${CYAN}Рестарт:${NC}   systemctl restart $SERVICE_NAME"
-    echo -e "  ${CYAN}Стоп:${NC}      systemctl stop $SERVICE_NAME"
-    echo -e "  ${CYAN}Конфиг:${NC}    nano $INSTALL_DIR/.env"
-    echo -e "  ${CYAN}Удалить:${NC}   bash $INSTALL_DIR/uninstall.sh"
-    echo ""
-    echo -e "  ${WHITE}🚀 Следующие шаги:${NC}"
-    echo -e "  1. Откройте бота в Telegram"
-    echo -e "  2. Отправьте /start"
-    echo -e "  3. В группе отправьте /setup_topics"
-    echo -e "     (бот создаст все топики автоматически)"
-    echo ""
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    printf "\n"
+    printf "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+    printf "${GREEN}  Sentinel Bot installed!${NC}\n"
+    printf "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+    printf "\n"
+    printf "  ${WHITE}Commands:${NC}\n"
+    printf "  ${CYAN}Logs:${NC}      journalctl -u %s -f\n" "$SERVICE_NAME"
+    printf "  ${CYAN}Status:${NC}    systemctl status %s\n" "$SERVICE_NAME"
+    printf "  ${CYAN}Restart:${NC}   systemctl restart %s\n" "$SERVICE_NAME"
+    printf "  ${CYAN}Stop:${NC}      systemctl stop %s\n" "$SERVICE_NAME"
+    printf "  ${CYAN}Config:${NC}    nano %s/.env\n" "$INSTALL_DIR"
+    printf "  ${CYAN}Uninstall:${NC} bash %s/uninstall.sh\n" "$INSTALL_DIR"
+    printf "\n"
+    printf "  ${WHITE}Next steps:${NC}\n"
+    printf "  1. Open the bot in Telegram\n"
+    printf "  2. Send /start\n"
+    printf "  3. In the group send /setup_topics\n"
+    printf "     (bot will create all topics automatically)\n"
+    printf "\n"
+    printf "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 }
 
 # === Main ===
