@@ -10,7 +10,8 @@ fi
 #  https://github.com/sentiox/sentinel-bot
 # ============================================
 
-set -e
+set -euo pipefail
+trap 'print_error "Failed at line $LINENO. Run with: bash -x install.sh for debug"; exit 1' ERR
 
 INSTALL_DIR="/opt/sentinel-bot"
 SERVICE_NAME="sentinel-bot"
@@ -102,10 +103,27 @@ clone_repo() {
 
 setup_venv() {
     print_info "Creating virtual environment..."
-    python3 -m venv "$INSTALL_DIR/venv"
-    "$INSTALL_DIR/venv/bin/pip" install --upgrade pip -q >/dev/null 2>&1
-    "$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" -q >/dev/null 2>&1
-    print_step "Virtual environment ready"
+
+    # Ensure python3-venv is available
+    if ! python3 -m venv --help >/dev/null 2>&1; then
+        print_info "Installing python3-venv..."
+        if command -v apt-get >/dev/null 2>&1; then
+            apt-get install -y -qq python3-venv >/dev/null 2>&1
+        fi
+    fi
+
+    python3 -m venv "$INSTALL_DIR/venv" || {
+        print_error "Failed to create venv. Trying with --without-pip..."
+        python3 -m venv --without-pip "$INSTALL_DIR/venv"
+        curl -sS https://bootstrap.pypa.io/get-pip.py | "$INSTALL_DIR/venv/bin/python3"
+    }
+
+    print_step "Virtual environment created"
+
+    print_info "Installing pip packages..."
+    "$INSTALL_DIR/venv/bin/pip" install --upgrade pip 2>&1 | tail -1
+    "$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" 2>&1 | tail -5
+    print_step "Dependencies installed"
 }
 
 configure_bot() {
