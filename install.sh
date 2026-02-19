@@ -65,12 +65,12 @@ fi
 # Install system packages
 info "Installing system packages..."
 if command -v apt-get >/dev/null 2>&1; then
-    apt-get update -qq >/dev/null 2>&1 || true
-    apt-get install -y python3 python3-pip python3-venv python3-full git wget curl >/dev/null 2>&1 || true
+    apt-get update -qq < /dev/null >/dev/null 2>&1 || true
+    apt-get install -y python3 python3-pip python3-venv python3-full git wget curl < /dev/null >/dev/null 2>&1 || true
 elif command -v dnf >/dev/null 2>&1; then
-    dnf install -y python3 python3-pip git wget curl >/dev/null 2>&1 || true
+    dnf install -y python3 python3-pip git wget curl < /dev/null >/dev/null 2>&1 || true
 elif command -v yum >/dev/null 2>&1; then
-    yum install -y python3 python3-pip git wget curl >/dev/null 2>&1 || true
+    yum install -y python3 python3-pip git wget curl < /dev/null >/dev/null 2>&1 || true
 fi
 
 command -v python3 >/dev/null 2>&1 || die "python3 not found!"
@@ -91,25 +91,30 @@ if [ -d "$INSTALL_DIR" ]; then
 fi
 
 info "Cloning repository..."
-git clone -q "$REPO_URL" "$INSTALL_DIR" || die "Failed to clone repository"
+git clone -q "$REPO_URL" "$INSTALL_DIR" < /dev/null || die "Failed to clone repository"
 ok "Cloned to $INSTALL_DIR"
 
 # Create venv
 info "Creating virtual environment..."
-python3 -m venv "$INSTALL_DIR/venv" 2>&1 && ok "Venv created" || {
+if python3 -m venv "$INSTALL_DIR/venv" < /dev/null 2>&1; then
+    ok "Venv created"
+else
     warn "venv failed, trying --without-pip..."
-    python3 -m venv --without-pip "$INSTALL_DIR/venv" 2>&1 || die "Cannot create venv"
-    info "Downloading pip..."
-    curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
-    "$INSTALL_DIR/venv/bin/python3" /tmp/get-pip.py 2>&1 || die "Cannot install pip"
-    rm -f /tmp/get-pip.py
-    ok "Venv created (fallback)"
-}
+    if python3 -m venv --without-pip "$INSTALL_DIR/venv" < /dev/null 2>&1; then
+        info "Downloading pip..."
+        curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
+        "$INSTALL_DIR/venv/bin/python3" /tmp/get-pip.py < /dev/null 2>&1 || die "Cannot install pip"
+        rm -f /tmp/get-pip.py
+        ok "Venv created (fallback)"
+    else
+        die "Cannot create venv. Install python3-venv: apt install python3-venv"
+    fi
+fi
 
 # Install pip packages
 info "Installing Python packages (this may take a minute)..."
-"$INSTALL_DIR/venv/bin/pip" install --upgrade pip 2>&1 | tail -1 || true
-"$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" 2>&1 | tail -3 || die "Failed to install packages"
+"$INSTALL_DIR/venv/bin/pip" install --upgrade pip < /dev/null 2>&1 | tail -1 || true
+"$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" < /dev/null 2>&1 | tail -3 || die "Failed to install packages"
 ok "Python packages installed"
 
 # Configure
