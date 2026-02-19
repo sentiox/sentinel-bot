@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Auto-relaunch with bash if running under sh/dash
+if [ -z "$BASH_VERSION" ]; then
+    exec bash "$0" "$@"
+fi
+
 # ============================================
 #  Sentinel Bot — Installer
 #  https://github.com/sentiox/sentinel-bot
