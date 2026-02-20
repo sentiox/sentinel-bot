@@ -44,10 +44,9 @@ async def _safe_callback_answer(callback: CallbackQuery, *args, **kwargs):
         pass
 
 
-def _topic_force_reply(chat_id: int):
-    if chat_id < 0:
-        return ForceReply(selective=True)
-    return None
+async def _send_topic_force_reply(msg: Message, text: str):
+    if msg.chat.id < 0:
+        await msg.answer(text, reply_markup=ForceReply(selective=True))
 
 
 class AddPaymentFSM(StatesGroup):
@@ -277,9 +276,9 @@ async def cb_edit_date(callback: CallbackQuery, state: FSMContext):
         "\u2022 \u0414\u0430\u0442\u0430: <b>DD.MM.YYYY</b> (\u043d\u0430\u043f\u0440. 15.03.2026)\n"
         "\u2022 \u0414\u043d\u0438: <b>+30</b> (\u043f\u0440\u0438\u0431\u0430\u0432\u0438\u0442 30 \u0434\u043d\u0435\u0439 \u043e\u0442 \u0441\u0435\u0433\u043e\u0434\u043d\u044f)\n\n"
         "\u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 /cancel \u0434\u043b\u044f \u043e\u0442\u043c\u0435\u043d\u044b.",
-        reply_markup=_topic_force_reply(callback.message.chat.id),
         parse_mode="HTML",
     )
+    await _send_topic_force_reply(callback.message, "\U0001f4c5 \u041e\u0442\u0432\u0435\u0442\u044c\u0442\u0435 \u0434\u0430\u0442\u043e\u0439 \u0438\u043b\u0438 +\u0434\u043d\u0438 \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
     await _safe_callback_answer(callback)
 
 
@@ -409,8 +408,8 @@ async def fsm_payment_server(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "\U0001f4dd \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043f\u043b\u0430\u0442\u0435\u0436\u0430:\n"
         "(\u043d\u0430\u043f\u0440. \"\u0410\u0440\u0435\u043d\u0434\u0430 VPS Hetzner\")",
-        reply_markup=_topic_force_reply(callback.message.chat.id),
     )
+    await _send_topic_force_reply(callback.message, "\U0001f4dd \u041e\u0442\u0432\u0435\u0442\u044c\u0442\u0435 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435\u043c \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
     await state.set_state(AddPaymentFSM.description)
     await _safe_callback_answer(callback)
 
@@ -422,8 +421,8 @@ async def fsm_payment_desc(message: Message, state: FSMContext):
         message,
         state,
         "\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 (\u0432 \u0440\u0443\u0431\u043b\u044f\u0445):",
-        reply_markup=_topic_force_reply(message.chat.id),
     )
+    await _send_topic_force_reply(message, "\U0001f4b5 \u041e\u0442\u0432\u0435\u0442\u044c\u0442\u0435 \u0441\u0443\u043c\u043c\u043e\u0439 \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
     await state.set_state(AddPaymentFSM.amount)
 
 
@@ -455,9 +454,10 @@ async def fsm_payment_amount(message: Message, state: FSMContext):
         "\U0001f4c5 \u041d\u0430 \u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0434\u043d\u0435\u0439?\n\n"
         "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043a\u043d\u043e\u043f\u043a\u0443 \u0438\u043b\u0438 \u0432\u0432\u0435\u0434\u0438\u0442\u0435 \u0434\u0430\u0442\u0443 \u0432\u0440\u0443\u0447\u043d\u0443\u044e:\n"
         "<b>DD.MM.YYYY</b> (\u043d\u0430\u043f\u0440. 15.03.2026)",
-        reply_markup=kb if message.chat.id > 0 else _topic_force_reply(message.chat.id),
+        reply_markup=kb if message.chat.id > 0 else None,
         parse_mode="HTML",
     )
+    await _send_topic_force_reply(message, "\U0001f4c5 \u041e\u0442\u0432\u0435\u0442\u044c\u0442\u0435 \u0434\u0430\u0442\u043e\u0439 \u0438\u043b\u0438 +\u0434\u043d\u0438 \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
     await state.set_state(AddPaymentFSM.due_date)
 
 
