@@ -1,12 +1,14 @@
+import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import MONITOR_INTERVAL, REMINDER_DAYS, GROUP_ID
 from database import db
 from services.monitoring_service import monitoring_service
-from utils.formatters import format_server_status, format_payment_reminder
+from utils.formatters import format_payment_reminder
+from utils.telegram_safe import send_message_safe
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +55,19 @@ async def monitoring_job():
     for server in servers:
         sid = server["id"]
         metrics = results.get(sid)
-        server_dict = dict(server)
 
         if metrics:
             alerts = monitoring_service.check_alerts(sid, server["name"], metrics)
             for alert_text in alerts:
                 try:
-                    await _bot.send_message(
+                    await send_message_safe(
+                        _bot,
                         chat_id=GROUP_ID,
                         message_thread_id=topic_id,
                         text=alert_text,
                         parse_mode="HTML",
                     )
+                    await asyncio.sleep(0.2)
                 except Exception as e:
                     logger.error(f"Failed to send alert: {e}")
 
@@ -86,7 +89,8 @@ async def payment_reminder_job():
         if days_left in REMINDER_DAYS and str(days_left) not in notified_list:
             text = format_payment_reminder(dict(payment), days_left)
             try:
-                await _bot.send_message(
+                await send_message_safe(
+                    _bot,
                     chat_id=GROUP_ID,
                     message_thread_id=topic_id,
                     text=text,

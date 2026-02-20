@@ -12,6 +12,7 @@ from config import BOT_TOKEN, GROUP_ID, ADMIN_IDS
 from database import db
 from handlers import get_all_routers
 from services.scheduler import init_scheduler
+from utils.telegram_safe import send_message_safe
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,7 +46,8 @@ async def on_startup(bot: Bot):
     # Notify admins
     for aid in ADMIN_IDS:
         try:
-            await bot.send_message(
+            await send_message_safe(
+                bot,
                 aid,
                 "\U0001f6e1 <b>Sentinel Bot \u0437\u0430\u043f\u0443\u0449\u0435\u043d!</b>\n\n"
                 "\u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 /start \u0434\u043b\u044f \u043d\u0430\u0447\u0430\u043b\u0430 \u0440\u0430\u0431\u043e\u0442\u044b.",
