@@ -4,7 +4,9 @@ from aiogram.types import Message, CallbackQuery
 
 from database import db
 from config import GROUP_ID, ADMIN_IDS
-from keyboards.inline import main_menu_kb
+from keyboards.inline import (
+    main_menu_kb, vps_panel_kb, payments_kb, balance_kb, admin_kb, backup_kb
+)
 
 router = Router()
 
@@ -25,6 +27,16 @@ TOPIC_CONFIG = [
     ("admin", "\u2699\ufe0f \u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", "\u2699\ufe0f"),
     ("backup", "\U0001f504 \u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f", "\U0001f504"),
 ]
+
+# Mapping topic keys to their menu callbacks
+TOPIC_MENU_MAP = {
+    "vps_panel": ("menu:vps", "\U0001f5a5 <b>\u041f\u0430\u043d\u0435\u043b\u044c \u0443\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u044f VPS</b>", vps_panel_kb),
+    "payments": ("menu:payments", "\U0001f4b0 <b>\u041e\u043f\u043b\u0430\u0442\u0430 VPS</b>\n\n\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u043f\u043b\u0430\u0442\u0435\u0436\u0430\u043c\u0438:", payments_kb),
+    "balance": ("menu:balance", "\U0001f4b3 <b>\u0411\u0430\u043b\u0430\u043d\u0441 \u042eKassa</b>\n\n\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0431\u0430\u043b\u0430\u043d\u0441\u043e\u043c:", balance_kb),
+    "monitoring": ("menu:monitoring", "\U0001f4ca <b>\u041c\u043e\u043d\u0438\u0442\u043e\u0440\u0438\u043d\u0433</b>\n\n\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0441\u0435\u0440\u0432\u0435\u0440:", None),
+    "admin": ("menu:admin", "\u2699\ufe0f <b>\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438</b>", admin_kb),
+    "backup": ("menu:backup", "\U0001f504 <b>\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f Remnawave</b>", backup_kb),
+}
 
 
 @router.message(Command("start"))
@@ -64,18 +76,31 @@ async def cmd_setup_topics(message: Message):
             await db.set_setting(f"topic_{key}", str(topic.message_thread_id))
             created += 1
 
-            await message.bot.send_message(
-                chat_id=chat_id,
-                message_thread_id=topic.message_thread_id,
-                text=f"{icon} <b>{name}</b>\n\n\u0422\u043e\u043f\u0438\u043a \u0433\u043e\u0442\u043e\u0432 \u043a \u0440\u0430\u0431\u043e\u0442\u0435!",
-                parse_mode="HTML",
-            )
+            # Send menu with buttons into each topic
+            menu_info = TOPIC_MENU_MAP.get(key)
+            if menu_info:
+                _, menu_text, kb_func = menu_info
+                kb = kb_func() if kb_func else None
+                await message.bot.send_message(
+                    chat_id=chat_id,
+                    message_thread_id=topic.message_thread_id,
+                    text=f"{menu_text}",
+                    reply_markup=kb,
+                    parse_mode="HTML",
+                )
+            else:
+                await message.bot.send_message(
+                    chat_id=chat_id,
+                    message_thread_id=topic.message_thread_id,
+                    text=f"{icon} <b>{name}</b>\n\n\u0422\u043e\u043f\u0438\u043a \u0433\u043e\u0442\u043e\u0432 \u043a \u0440\u0430\u0431\u043e\u0442\u0435!",
+                    parse_mode="HTML",
+                )
         except Exception as e:
             await message.answer(f"\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u0438 \u0442\u043e\u043f\u0438\u043a\u0430 '{name}': {e}")
 
     await status.edit_text(
         f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e! \u0421\u043e\u0437\u0434\u0430\u043d\u043e \u0442\u043e\u043f\u0438\u043a\u043e\u0432: {created}\n\n"
-        f"\u0411\u043e\u0442 \u0433\u043e\u0442\u043e\u0432 \u043a \u0440\u0430\u0431\u043e\u0442\u0435! \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 /start \u0432 \u041b\u0421."
+        f"\u0411\u043e\u0442 \u0433\u043e\u0442\u043e\u0432 \u043a \u0440\u0430\u0431\u043e\u0442\u0435!"
     )
 
     await db.set_setting("group_id", str(chat_id))
