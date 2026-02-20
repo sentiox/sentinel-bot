@@ -23,9 +23,12 @@ async def cb_balance(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
         await callback.answer("\u26d4", show_alert=True)
         return
+
+    balance = await db.get_balance()
     await callback.message.edit_text(
-        "\U0001f4b3 <b>\u0411\u0430\u043b\u0430\u043d\u0441 \u042eKassa</b>\n\n"
-        "\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0431\u0430\u043b\u0430\u043d\u0441\u043e\u043c:",
+        f"\U0001f4b3 <b>\u0411\u0430\u043b\u0430\u043d\u0441 \u042eKassa</b>\n\n"
+        f"\U0001f4b0 \u0411\u0430\u043b\u0430\u043d\u0441: <b>{format_money(balance)}</b>\n\n"
+        f"\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0431\u0430\u043b\u0430\u043d\u0441\u043e\u043c:",
         reply_markup=balance_kb(),
         parse_mode="HTML",
     )

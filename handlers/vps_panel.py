@@ -24,6 +24,12 @@ class AddServerFSM(StatesGroup):
     ssh_key = State()
 
 
+class EditServerFSM(StatesGroup):
+    server_id = State()
+    field = State()
+    value = State()
+
+
 class TerminalFSM(StatesGroup):
     command = State()
     server_id = State()
@@ -287,6 +293,93 @@ async def _save_server(message: Message, state: FSMContext):
     await state.clear()
 
 
+# === Edit Server ===
+
+@router.callback_query(F.data.startswith("srv:edit:"))
+async def cb_edit_server(callback: CallbackQuery):
+    if not await db.is_admin(callback.from_user.id):
+        await callback.answer("\u26d4", show_alert=True)
+        return
+    server_id = int(callback.data.split(":")[2])
+    server = await db.get_server(server_id)
+    if not server:
+        await callback.answer("\u0421\u0435\u0440\u0432\u0435\u0440 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
+        return
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="\U0001f4dd \u0418\u043c\u044f", callback_data=f"srv:editf:name:{server_id}"),
+         InlineKeyboardButton(text="\U0001f310 Host", callback_data=f"srv:editf:host:{server_id}")],
+        [InlineKeyboardButton(text="\U0001f522 \u041f\u043e\u0440\u0442", callback_data=f"srv:editf:port:{server_id}"),
+         InlineKeyboardButton(text="\U0001f464 \u041b\u043e\u0433\u0438\u043d", callback_data=f"srv:editf:username:{server_id}")],
+        [InlineKeyboardButton(text="\U0001f511 \u041f\u0430\u0440\u043e\u043b\u044c", callback_data=f"srv:editf:password:{server_id}")],
+        [InlineKeyboardButton(text="\u25c0\ufe0f \u041d\u0430\u0437\u0430\u0434", callback_data=f"srv:select:{server_id}")],
+    ])
+    await callback.message.edit_text(
+        f"\u270f\ufe0f <b>\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435: {server['name']}</b>\n\n"
+        f"\U0001f310 Host: <code>{server['host']}:{server['port']}</code>\n"
+        f"\U0001f464 User: <code>{server['username']}</code>\n"
+        f"\U0001f511 Auth: {server['auth_type']}\n\n"
+        f"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043f\u043e\u043b\u0435 \u0434\u043b\u044f \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f:",
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("srv:editf:"))
+async def cb_edit_server_field(callback: CallbackQuery, state: FSMContext):
+    parts = callback.data.split(":")
+    field = parts[2]
+    server_id = int(parts[3])
+
+    field_names = {
+        "name": "\u0438\u043c\u044f \u0441\u0435\u0440\u0432\u0435\u0440\u0430",
+        "host": "IP-\u0430\u0434\u0440\u0435\u0441",
+        "port": "SSH \u043f\u043e\u0440\u0442",
+        "username": "\u043b\u043e\u0433\u0438\u043d",
+        "password": "\u043f\u0430\u0440\u043e\u043b\u044c",
+    }
+    await state.update_data(edit_server_id=server_id, edit_field=field)
+    await state.set_state(EditServerFSM.value)
+    await callback.message.edit_text(
+        f"\u270f\ufe0f \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043d\u043e\u0432\u043e\u0435 \u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435 \u0434\u043b\u044f <b>{field_names.get(field, field)}</b>:\n\n"
+        f"(\u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 /cancel \u0434\u043b\u044f \u043e\u0442\u043c\u0435\u043d\u044b)",
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.message(EditServerFSM.value)
+async def fsm_edit_server_value(message: Message, state: FSMContext):
+    if message.text == "/cancel":
+        data = await state.get_data()
+        await state.clear()
+        await message.answer(
+            "\u274c \u041e\u0442\u043c\u0435\u043d\u0435\u043d\u043e.",
+            reply_markup=back_kb(f"srv:edit:{data.get('edit_server_id', 0)}"),
+        )
+        return
+
+    data = await state.get_data()
+    server_id = data["edit_server_id"]
+    field = data["edit_field"]
+    value = message.text.strip()
+
+    if field == "port":
+        if not value.isdigit():
+            await message.answer("\u274c \u041f\u043e\u0440\u0442 \u0434\u043e\u043b\u0436\u0435\u043d \u0431\u044b\u0442\u044c \u0447\u0438\u0441\u043b\u043e\u043c!")
+            return
+        value = int(value)
+
+    await db.update_server(server_id, **{field: value})
+    await state.clear()
+    await message.answer(
+        f"\u2705 \u041f\u043e\u043b\u0435 \u0443\u0441\u043f\u0435\u0448\u043d\u043e \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u043e!",
+        reply_markup=back_kb(f"srv:edit:{server_id}"),
+    )
+    await db.log_action(message.from_user.id, "edit_server", f"id={server_id} {field}")
+
+
 # === Delete Server ===
 
 @router.callback_query(F.data.startswith("srv:delete:"))
@@ -406,17 +499,22 @@ async def fsm_terminal_exec(message: Message, state: FSMContext):
         return
 
     status_msg = await message.answer("\u23f3 \u0412\u044b\u043f\u043e\u043b\u043d\u044f\u044e...")
-    out, err, code = await ssh_manager.execute(dict(server), message.text.strip())
+    out, err, code = await ssh_manager.execute(dict(server), message.text.strip(), timeout=15)
 
     result = out or err or "(\u043f\u0443\u0441\u0442\u043e\u0439 \u0432\u044b\u0432\u043e\u0434)"
     if len(result) > 3500:
         result = result[:3500] + "\n...\u043e\u0431\u0440\u0435\u0437\u0430\u043d\u043e"
 
     exit_icon = "\u2705" if code == 0 else "\u274c"
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    terminal_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="\u25c0\ufe0f \u0417\u0430\u043a\u0440\u044b\u0442\u044c \u0442\u0435\u0440\u043c\u0438\u043d\u0430\u043b", callback_data=f"srv:select:{server_id}")],
+    ])
     await status_msg.edit_text(
         f"{exit_icon} <b>Exit: {code}</b>\n"
         f"<pre>{result}</pre>\n\n"
         f"\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0443\u044e \u043a\u043e\u043c\u0430\u043d\u0434\u0443 \u0438\u043b\u0438 /cancel",
+        reply_markup=terminal_kb,
         parse_mode="HTML",
     )
     await db.log_action(message.from_user.id, "terminal", f"{server['name']}: {message.text[:100]}")

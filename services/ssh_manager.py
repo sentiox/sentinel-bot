@@ -41,9 +41,20 @@ class SSHManager:
             try:
                 client = self._create_client(server)
                 stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
-                exit_code = stdout.channel.recv_exit_status()
-                out = stdout.read().decode("utf-8", errors="replace")
-                err = stderr.read().decode("utf-8", errors="replace")
+                stdout.channel.settimeout(timeout)
+                stderr.channel.settimeout(timeout)
+                try:
+                    exit_code = stdout.channel.recv_exit_status()
+                except Exception:
+                    exit_code = -1
+                try:
+                    out = stdout.read().decode("utf-8", errors="replace")
+                except Exception:
+                    out = "(timeout)"
+                try:
+                    err = stderr.read().decode("utf-8", errors="replace")
+                except Exception:
+                    err = ""
                 return out, err, exit_code
             except Exception as e:
                 logger.error(f"SSH error for {server['host']}: {e}")
