@@ -5,6 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from database import db
 from keyboards.inline import balance_kb, back_kb
+from utils.telegram_safe import edit_message_text_safe
 from utils.formatters import format_balance_report, format_money
 
 router = Router()
@@ -30,7 +31,8 @@ async def _edit_bot_msg(message: Message, state: FSMContext, text: str, **kwargs
     bot_msg_id = data.get("_bot_msg_id")
     if bot_msg_id:
         try:
-            await message.bot.edit_message_text(
+            await edit_message_text_safe(
+                message.bot,
                 text=text, chat_id=message.chat.id, message_id=bot_msg_id, **kwargs
             )
             return

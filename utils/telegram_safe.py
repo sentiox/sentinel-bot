@@ -23,3 +23,20 @@ async def send_message_safe(bot, *args: Any, **kwargs: Any):
             if attempt >= 3:
                 raise
             await asyncio.sleep(0.7 * attempt)
+
+
+async def edit_message_text_safe(bot, *args: Any, **kwargs: Any):
+    """Edit Telegram message with retry for flood/network errors."""
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return await bot.edit_message_text(*args, **kwargs)
+        except TelegramRetryAfter as e:
+            wait_for = float(getattr(e, "retry_after", 1)) + 0.2
+            logger.warning("Flood control hit on edit. Sleeping %.1fs before retry", wait_for)
+            await asyncio.sleep(wait_for)
+        except TelegramNetworkError:
+            if attempt >= 3:
+                raise
+            await asyncio.sleep(0.7 * attempt)

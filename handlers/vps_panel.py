@@ -9,6 +9,7 @@ from keyboards.inline import (
     vps_panel_kb, server_actions_kb, remnawave_kb, confirm_kb, back_kb
 )
 from services.ssh_manager import ssh_manager
+from utils.telegram_safe import edit_message_text_safe
 from utils.formatters import format_server_list, format_money
 
 router = Router()
@@ -28,7 +29,8 @@ async def _edit_bot_msg(message: Message, state: FSMContext, text: str, **kwargs
     bot_msg_id = data.get("_bot_msg_id")
     if bot_msg_id:
         try:
-            await message.bot.edit_message_text(
+            await edit_message_text_safe(
+                message.bot,
                 text=text, chat_id=message.chat.id, message_id=bot_msg_id, **kwargs
             )
             return
@@ -545,7 +547,8 @@ async def fsm_terminal_exec(message: Message, state: FSMContext):
     bot_msg_id = data.get("_bot_msg_id")
     if bot_msg_id:
         try:
-            await message.bot.edit_message_text(
+            await edit_message_text_safe(
+                message.bot,
                 text=f"{exit_icon} <b>Exit: {code}</b>\n"
                      f"<pre>{result}</pre>\n\n"
                      f"\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0443\u044e \u043a\u043e\u043c\u0430\u043d\u0434\u0443 \u0438\u043b\u0438 /cancel",

@@ -7,6 +7,7 @@ from config import GROUP_ID, ADMIN_IDS
 from keyboards.inline import (
     main_menu_kb, vps_panel_kb, payments_kb, balance_kb, admin_kb, backup_kb
 )
+from utils.telegram_safe import send_message_safe
 
 router = Router()
 
@@ -116,7 +117,8 @@ async def cmd_setup_topics(message: Message):
             if menu_info:
                 _, menu_text, kb_func = menu_info
                 kb = kb_func() if kb_func else None
-                await message.bot.send_message(
+                await send_message_safe(
+                    message.bot,
                     chat_id=chat_id,
                     message_thread_id=topic.message_thread_id,
                     text=f"{menu_text}",
@@ -124,7 +126,8 @@ async def cmd_setup_topics(message: Message):
                     parse_mode="HTML",
                 )
             else:
-                await message.bot.send_message(
+                await send_message_safe(
+                    message.bot,
                     chat_id=chat_id,
                     message_thread_id=topic.message_thread_id,
                     text=f"{icon} <b>{name}</b>\n\n\u0422\u043e\u043f\u0438\u043a \u0433\u043e\u0442\u043e\u0432 \u043a \u0440\u0430\u0431\u043e\u0442\u0435!",
