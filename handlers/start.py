@@ -67,14 +67,28 @@ async def cmd_setup_topics(message: Message):
         )
         return
 
-    status = await message.answer("\u23f3 \u0421\u043e\u0437\u0434\u0430\u044e \u0442\u043e\u043f\u0438\u043a\u0438...")
+    status = await message.answer("\u23f3 \u041f\u0440\u043e\u0432\u0435\u0440\u044f\u044e \u0442\u043e\u043f\u0438\u043a\u0438...")
 
     created = 0
     for key, name, icon in TOPIC_CONFIG:
-        existing = await db.get_setting(f"topic_{key}")
-        if existing:
-            continue
+        existing_id = await db.get_setting(f"topic_{key}")
 
+        # If topic ID is saved, verify it's still alive in Telegram
+        if existing_id:
+            try:
+                await message.bot.send_chat_action(
+                    chat_id=chat_id,
+                    message_thread_id=int(existing_id),
+                    action="typing",
+                )
+                continue  # Topic exists and is alive, skip
+            except Exception:
+                # Topic ID is stale (deleted or from another group), clear it
+                await db.set_setting(f"topic_{key}", "")
+                existing_id = None
+
+        # Try to find topic by scanning recent forum_topic_created service messages
+        # (not available via API), so just create a new one
         try:
             topic = await message.bot.create_forum_topic(
                 chat_id=chat_id,
@@ -105,8 +119,15 @@ async def cmd_setup_topics(message: Message):
         except Exception as e:
             await message.answer(f"\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u0438 \u0442\u043e\u043f\u0438\u043a\u0430 '{name}': {e}")
 
+    existing_count = len(TOPIC_CONFIG) - created
+    parts = []
+    if created:
+        parts.append(f"\u0441\u043e\u0437\u0434\u0430\u043d\u043e: {created}")
+    if existing_count:
+        parts.append(f"\u0443\u0436\u0435 \u0431\u044b\u043b\u043e: {existing_count}")
+
     await status.edit_text(
-        f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e! \u0421\u043e\u0437\u0434\u0430\u043d\u043e \u0442\u043e\u043f\u0438\u043a\u043e\u0432: {created}\n\n"
+        f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e! \u0422\u043e\u043f\u0438\u043a\u043e\u0432 {', '.join(parts)}.\n\n"
         f"\u0411\u043e\u0442 \u0433\u043e\u0442\u043e\u0432 \u043a \u0440\u0430\u0431\u043e\u0442\u0435!"
     )
 
