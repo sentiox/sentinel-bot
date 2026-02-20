@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from database import db
-from keyboards.inline import balance_kb, back_kb
+from keyboards.inline import balance_kb, balance_topic_kb, back_kb
 from utils.telegram_safe import edit_message_text_safe
 from utils.formatters import format_balance_report, format_money
 
@@ -62,7 +62,7 @@ async def cb_balance(callback: CallbackQuery):
         f"\U0001f4b3 <b>\u0411\u0430\u043b\u0430\u043d\u0441 \u042eKassa</b>\n\n"
         f"\U0001f4b0 \u0411\u0430\u043b\u0430\u043d\u0441: <b>{format_money(balance)}</b>\n\n"
         f"\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0431\u0430\u043b\u0430\u043d\u0441\u043e\u043c:",
-        reply_markup=balance_kb(),
+        reply_markup=balance_topic_kb() if callback.message.chat.id < 0 else balance_kb(),
         parse_mode="HTML",
     )
     await _safe_callback_answer(callback)

@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from database import db
-from keyboards.inline import admin_kb, back_kb
+from keyboards.inline import admin_kb, admin_topic_kb, back_kb
 from config import ADMIN_IDS
 from utils.telegram_safe import edit_message_text_safe
 
@@ -56,7 +56,7 @@ async def cb_admin(callback: CallbackQuery):
         return
     await callback.message.edit_text(
         "\u2699\ufe0f <b>\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0438 \u0430\u0434\u043c\u0438\u043d\u043a\u0430</b>",
-        reply_markup=admin_kb(),
+        reply_markup=admin_topic_kb() if callback.message.chat.id < 0 else admin_kb(),
         parse_mode="HTML",
     )
     await _safe_callback_answer(callback)

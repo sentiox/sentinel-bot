@@ -5,7 +5,13 @@ from aiogram.types import Message, CallbackQuery
 from database import db
 from config import GROUP_ID, ADMIN_IDS
 from keyboards.inline import (
-    main_menu_kb, vps_panel_kb, payments_kb, balance_kb, admin_kb, backup_kb
+    main_menu_kb,
+    vps_panel_topic_kb,
+    payments_topic_kb,
+    balance_topic_kb,
+    monitoring_topic_entry_kb,
+    admin_topic_kb,
+    backup_topic_kb,
 )
 from utils.telegram_safe import send_message_safe
 
@@ -38,12 +44,12 @@ TOPIC_CONFIG = [
 
 # Mapping topic keys to their menu callbacks
 TOPIC_MENU_MAP = {
-    "vps_panel": ("menu:vps", "\U0001f5a5 <b>\u041f\u0430\u043d\u0435\u043b\u044c \u0443\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u044f VPS</b>", vps_panel_kb),
-    "payments": ("menu:payments", "\U0001f4b0 <b>\u041e\u043f\u043b\u0430\u0442\u0430 VPS</b>\n\n\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u043f\u043b\u0430\u0442\u0435\u0436\u0430\u043c\u0438:", payments_kb),
-    "balance": ("menu:balance", "\U0001f4b3 <b>\u0411\u0430\u043b\u0430\u043d\u0441 \u042eKassa</b>\n\n\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0431\u0430\u043b\u0430\u043d\u0441\u043e\u043c:", balance_kb),
-    "monitoring": ("menu:monitoring", "\U0001f4ca <b>\u041c\u043e\u043d\u0438\u0442\u043e\u0440\u0438\u043d\u0433</b>\n\n\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0441\u0435\u0440\u0432\u0435\u0440:", None),
-    "admin": ("menu:admin", "\u2699\ufe0f <b>\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438</b>", admin_kb),
-    "backup": ("menu:backup", "\U0001f504 <b>\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f Remnawave</b>", backup_kb),
+    "vps_panel": ("menu:vps", "\U0001f5a5 <b>\u041f\u0430\u043d\u0435\u043b\u044c \u0443\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u044f VPS</b>", vps_panel_topic_kb),
+    "payments": ("menu:payments", "\U0001f4b0 <b>\u041e\u043f\u043b\u0430\u0442\u0430 VPS</b>\n\n\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u043f\u043b\u0430\u0442\u0435\u0436\u0430\u043c\u0438:", payments_topic_kb),
+    "balance": ("menu:balance", "\U0001f4b3 <b>\u0411\u0430\u043b\u0430\u043d\u0441 \u042eKassa</b>\n\n\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0431\u0430\u043b\u0430\u043d\u0441\u043e\u043c:", balance_topic_kb),
+    "monitoring": ("menu:monitoring", "\U0001f4ca <b>\u041c\u043e\u043d\u0438\u0442\u043e\u0440\u0438\u043d\u0433</b>\n\n\u041d\u0430\u0436\u043c\u0438\u0442\u0435 \u043a\u043d\u043e\u043f\u043a\u0443 \u043d\u0438\u0436\u0435:", monitoring_topic_entry_kb),
+    "admin": ("menu:admin", "\u2699\ufe0f <b>\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438</b>", admin_topic_kb),
+    "backup": ("menu:backup", "\U0001f504 <b>\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f Remnawave</b>", backup_topic_kb),
 }
 
 
@@ -162,6 +168,13 @@ async def cmd_menu(message: Message):
 async def cb_back_to_menu(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
         await _safe_callback_answer(callback, "\u26d4 \u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d", show_alert=True)
+        return
+    if callback.message.chat.id < 0:
+        await _safe_callback_answer(
+            callback,
+            "\u0412 \u0442\u043e\u043f\u0438\u043a\u0430\u0445 \u043a\u043d\u043e\u043f\u043a\u0430 \u00ab\u041d\u0430\u0437\u0430\u0434\u00bb \u043e\u0442\u043a\u043b\u044e\u0447\u0435\u043d\u0430. \u0413\u043b\u0430\u0432\u043d\u043e\u0435 \u043c\u0435\u043d\u044e \u2014 \u0442\u043e\u043b\u044c\u043a\u043e \u0432 \u041b\u0421.",
+            show_alert=True,
+        )
         return
     await callback.message.edit_text(WELCOME_TEXT, reply_markup=main_menu_kb(), parse_mode="HTML")
     await _safe_callback_answer(callback)

@@ -2,7 +2,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
 from database import db
-from keyboards.inline import monitoring_kb, monitoring_server_kb, back_kb
+from keyboards.inline import monitoring_kb, monitoring_topic_kb, monitoring_server_kb, back_kb
 from services.monitoring_service import monitoring_service
 from utils.formatters import format_server_status
 
@@ -24,13 +24,14 @@ async def cb_monitoring(callback: CallbackQuery):
         await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
+    is_topic_chat = callback.message.chat.id < 0
     servers = await db.get_servers()
     if not servers:
         await callback.message.edit_text(
             "\U0001f4ca <b>\u041c\u043e\u043d\u0438\u0442\u043e\u0440\u0438\u043d\u0433</b>\n\n"
             "\u041d\u0435\u0442 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u043d\u044b\u0445 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u0432.\n"
             "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0434\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0441\u0435\u0440\u0432\u0435\u0440 \u0432 \u041f\u0430\u043d\u0435\u043b\u044c VPS.",
-            reply_markup=back_kb("menu:back"),
+            reply_markup=back_kb("menu:monitoring") if is_topic_chat else back_kb("menu:back"),
             parse_mode="HTML",
         )
         await _safe_callback_answer(callback)
@@ -39,7 +40,7 @@ async def cb_monitoring(callback: CallbackQuery):
     await callback.message.edit_text(
         "\U0001f4ca <b>\u041c\u043e\u043d\u0438\u0442\u043e\u0440\u0438\u043d\u0433 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u0432</b>\n\n"
         "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0441\u0435\u0440\u0432\u0435\u0440:",
-        reply_markup=monitoring_kb(list(servers)),
+        reply_markup=monitoring_topic_kb(list(servers)) if is_topic_chat else monitoring_kb(list(servers)),
         parse_mode="HTML",
     )
     await _safe_callback_answer(callback)
@@ -105,6 +106,7 @@ async def cb_refresh_all(callback: CallbackQuery):
         await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
+    is_topic_chat = callback.message.chat.id < 0
     await _safe_callback_answer(callback, "\U0001f504 \u041e\u0431\u043d\u043e\u0432\u043b\u044f\u044e \u0432\u0441\u0435 \u0441\u0435\u0440\u0432\u0435\u0440\u0430...")
     results = await monitoring_service.collect_all()
     servers = await db.get_servers()
@@ -129,7 +131,7 @@ async def cb_refresh_all(callback: CallbackQuery):
 
     await callback.message.edit_text(
         text,
-        reply_markup=monitoring_kb(list(servers)),
+        reply_markup=monitoring_topic_kb(list(servers)) if is_topic_chat else monitoring_kb(list(servers)),
         parse_mode="HTML",
     )
 

@@ -6,7 +6,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from database import db
 from keyboards.inline import (
-    vps_panel_kb, server_actions_kb, remnawave_kb, confirm_kb, back_kb
+    vps_panel_kb, vps_panel_topic_kb, server_actions_kb, remnawave_kb, confirm_kb, back_kb
 )
 from services.ssh_manager import ssh_manager
 from utils.telegram_safe import edit_message_text_safe
@@ -82,7 +82,7 @@ async def cb_vps_panel(callback: CallbackQuery):
         return
     await callback.message.edit_text(
         "\U0001f5a5 <b>\u041f\u0430\u043d\u0435\u043b\u044c \u0443\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u044f VPS</b>",
-        reply_markup=vps_panel_kb(),
+        reply_markup=vps_panel_topic_kb() if callback.message.chat.id < 0 else vps_panel_kb(),
         parse_mode="HTML",
     )
     await _safe_callback_answer(callback)

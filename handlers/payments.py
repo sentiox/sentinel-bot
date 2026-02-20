@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from database import db
-from keyboards.inline import payments_kb, back_kb, confirm_kb
+from keyboards.inline import payments_kb, payments_topic_kb, back_kb, confirm_kb
 from utils.telegram_safe import edit_message_text_safe
 from utils.formatters import format_money, format_payment_reminder
 
@@ -66,7 +66,7 @@ async def cb_payments(callback: CallbackQuery):
     await callback.message.edit_text(
         "\U0001f4b0 <b>\u041e\u043f\u043b\u0430\u0442\u0430 VPS</b>\n\n"
         "\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u043f\u043b\u0430\u0442\u0435\u0436\u0430\u043c\u0438 \u0438 \u043d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u044f\u043c\u0438:",
-        reply_markup=payments_kb(),
+        reply_markup=payments_topic_kb() if callback.message.chat.id < 0 else payments_kb(),
         parse_mode="HTML",
     )
     await _safe_callback_answer(callback)

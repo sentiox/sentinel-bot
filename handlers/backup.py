@@ -2,7 +2,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
 from database import db
-from keyboards.inline import backup_kb, back_kb, confirm_kb
+from keyboards.inline import backup_kb, backup_topic_kb, back_kb, confirm_kb
 from services.ssh_manager import ssh_manager
 
 router = Router()
@@ -23,12 +23,13 @@ async def cb_backup(callback: CallbackQuery):
         await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
+    is_topic_chat = callback.message.chat.id < 0
     servers = await db.get_servers()
     if not servers:
         await callback.message.edit_text(
             "\U0001f504 <b>\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f Remnawave</b>\n\n"
             "\u041d\u0435\u0442 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u0432. \u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0434\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0441\u0435\u0440\u0432\u0435\u0440.",
-            reply_markup=back_kb("menu:back"),
+            reply_markup=back_kb("menu:backup") if is_topic_chat else back_kb("menu:back"),
             parse_mode="HTML",
         )
         await _safe_callback_answer(callback)
@@ -37,14 +38,17 @@ async def cb_backup(callback: CallbackQuery):
     # If only one server — show actions directly
     if len(list(servers)) == 1:
         server = servers[0]
-        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="\U0001f7e2 Update Panel", callback_data=f"bkp:do:panel:{server['id']}")],
-            [InlineKeyboardButton(text="\U0001f7e1 Update Node", callback_data=f"bkp:do:node:{server['id']}")],
-            [InlineKeyboardButton(text="\U0001f535 Update Subscription", callback_data=f"bkp:do:sub:{server['id']}")],
-            [InlineKeyboardButton(text="\U0001f534 Clean Docker Images", callback_data=f"bkp:do:clean:{server['id']}")],
-            [InlineKeyboardButton(text="\u25c0\ufe0f \u041d\u0430\u0437\u0430\u0434", callback_data="menu:back")],
-        ])
+        kb = backup_topic_kb() if is_topic_chat else backup_kb()
+        if not is_topic_chat:
+            # For private chat keep existing flow with direct actions for the single server.
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="\U0001f7e2 Update Panel", callback_data=f"bkp:do:panel:{server['id']}")],
+                [InlineKeyboardButton(text="\U0001f7e1 Update Node", callback_data=f"bkp:do:node:{server['id']}")],
+                [InlineKeyboardButton(text="\U0001f535 Update Subscription", callback_data=f"bkp:do:sub:{server['id']}")],
+                [InlineKeyboardButton(text="\U0001f534 Clean Docker Images", callback_data=f"bkp:do:clean:{server['id']}")],
+                [InlineKeyboardButton(text="\u25c0\ufe0f \u041d\u0430\u0437\u0430\u0434", callback_data="menu:back")],
+            ])
         await callback.message.edit_text(
             f"\U0001f504 <b>\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f Remnawave</b>\n"
             f"\U0001f5a5 \u0421\u0435\u0440\u0432\u0435\u0440: {server['name']}",
@@ -60,7 +64,8 @@ async def cb_backup(callback: CallbackQuery):
                 text=f"\U0001f5a5 {s['name']}",
                 callback_data=f"bkp:srv:{s['id']}"
             )])
-        buttons.append([InlineKeyboardButton(text="\u25c0\ufe0f \u041d\u0430\u0437\u0430\u0434", callback_data="menu:back")])
+        if not is_topic_chat:
+            buttons.append([InlineKeyboardButton(text="\u25c0\ufe0f \u041d\u0430\u0437\u0430\u0434", callback_data="menu:back")])
 
         await callback.message.edit_text(
             "\U0001f504 <b>\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f Remnawave</b>\n\n"
