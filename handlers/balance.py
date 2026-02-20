@@ -16,12 +16,43 @@ class BalanceOpFSM(StatesGroup):
     description = State()
 
 
+async def _delete_msg(message: Message):
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+
+async def _edit_bot_msg(message: Message, state: FSMContext, text: str, **kwargs):
+    """Delete user message and edit the stored bot message."""
+    await _delete_msg(message)
+    data = await state.get_data()
+    bot_msg_id = data.get("_bot_msg_id")
+    if bot_msg_id:
+        try:
+            await message.bot.edit_message_text(
+                text=text, chat_id=message.chat.id, message_id=bot_msg_id, **kwargs
+            )
+            return
+        except Exception:
+            pass
+    msg = await message.answer(text, **kwargs)
+    await state.update_data(_bot_msg_id=msg.message_id)
+
+
+async def _safe_callback_answer(callback: CallbackQuery, *args, **kwargs):
+    try:
+        await callback.answer(*args, **kwargs)
+    except Exception:
+        pass
+
+
 # === Balance Menu ===
 
 @router.callback_query(F.data == "menu:balance")
 async def cb_balance(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     balance = await db.get_balance()
@@ -32,7 +63,7 @@ async def cb_balance(callback: CallbackQuery):
         reply_markup=balance_kb(),
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Show Balance ===
@@ -40,7 +71,7 @@ async def cb_balance(callback: CallbackQuery):
 @router.callback_query(F.data == "bal:show")
 async def cb_show_balance(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     balance = await db.get_balance()
@@ -50,7 +81,7 @@ async def cb_show_balance(callback: CallbackQuery):
     await callback.message.edit_text(
         text, reply_markup=back_kb("menu:balance"), parse_mode="HTML"
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Income / Expense / Payment ===
@@ -58,7 +89,7 @@ async def cb_show_balance(callback: CallbackQuery):
 @router.callback_query(F.data.in_({"bal:income", "bal:expense", "bal:payment"}))
 async def cb_balance_operation(callback: CallbackQuery, state: FSMContext):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     op_map = {
@@ -67,13 +98,13 @@ async def cb_balance_operation(callback: CallbackQuery, state: FSMContext):
         "bal:payment": ("payment", "\U0001f9fe \u041e\u043f\u043b\u0430\u0442\u0430"),
     }
     op_type, op_name = op_map[callback.data]
-    await state.update_data(op_type=op_type, op_name=op_name)
+    await state.update_data(op_type=op_type, op_name=op_name, _bot_msg_id=callback.message.message_id)
     await state.set_state(BalanceOpFSM.amount)
 
     await callback.message.edit_text(
         f"{op_name}\n\n\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 (\u0432 \u0440\u0443\u0431\u043b\u044f\u0445):",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 @router.message(BalanceOpFSM.amount)
@@ -81,15 +112,16 @@ async def fsm_balance_amount(message: Message, state: FSMContext):
     try:
         amount = float(message.text.strip().replace(",", "."))
     except ValueError:
-        await message.answer("\u274c \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0447\u0438\u0441\u043b\u043e!")
+        await _delete_msg(message)
         return
 
     if amount <= 0:
-        await message.answer("\u274c \u0421\u0443\u043c\u043c\u0430 \u0434\u043e\u043b\u0436\u043d\u0430 \u0431\u044b\u0442\u044c \u0431\u043e\u043b\u044c\u0448\u0435 0!")
+        await _delete_msg(message)
         return
 
     await state.update_data(amount=amount)
-    await message.answer("\U0001f4dd \u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 (\u0438\u043b\u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 - \u0434\u043b\u044f \u043f\u0440\u043e\u043f\u0443\u0441\u043a\u0430):")
+    await _edit_bot_msg(message, state,
+        "\U0001f4dd \u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 (\u0438\u043b\u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 - \u0434\u043b\u044f \u043f\u0440\u043e\u043f\u0443\u0441\u043a\u0430):")
     await state.set_state(BalanceOpFSM.description)
 
 
@@ -115,7 +147,7 @@ async def fsm_balance_desc(message: Message, state: FSMContext):
     if desc:
         text += f"\U0001f4dd {desc}\n"
 
-    await message.answer(text, reply_markup=back_kb("menu:balance"), parse_mode="HTML")
+    await _edit_bot_msg(message, state, text, reply_markup=back_kb("menu:balance"), parse_mode="HTML")
     await db.log_action(
         message.from_user.id, f"balance_{data['op_type']}", f"{data['amount']} - {desc}"
     )
@@ -127,7 +159,7 @@ async def fsm_balance_desc(message: Message, state: FSMContext):
 @router.callback_query(F.data == "bal:history")
 async def cb_balance_history(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     history = await db.get_balance_history(limit=15)
@@ -137,7 +169,7 @@ async def cb_balance_history(callback: CallbackQuery):
             reply_markup=back_kb("menu:balance"),
             parse_mode="HTML",
         )
-        await callback.answer()
+        await _safe_callback_answer(callback)
         return
 
     op_icons = {"income": "\U0001f4e5", "expense": "\U0001f4e4", "payment": "\U0001f9fe"}
@@ -154,4 +186,4 @@ async def cb_balance_history(callback: CallbackQuery):
     await callback.message.edit_text(
         text, reply_markup=back_kb("menu:balance"), parse_mode="HTML"
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)

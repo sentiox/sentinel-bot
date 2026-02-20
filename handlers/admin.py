@@ -10,6 +10,37 @@ from config import ADMIN_IDS
 router = Router()
 
 
+async def _delete_msg(message: Message):
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+
+async def _edit_bot_msg(message: Message, state: FSMContext, text: str, **kwargs):
+    """Delete user message and edit the stored bot message."""
+    await _delete_msg(message)
+    data = await state.get_data()
+    bot_msg_id = data.get("_bot_msg_id")
+    if bot_msg_id:
+        try:
+            await message.bot.edit_message_text(
+                text=text, chat_id=message.chat.id, message_id=bot_msg_id, **kwargs
+            )
+            return
+        except Exception:
+            pass
+    msg = await message.answer(text, **kwargs)
+    await state.update_data(_bot_msg_id=msg.message_id)
+
+
+async def _safe_callback_answer(callback, *args, **kwargs):
+    try:
+        await callback.answer(*args, **kwargs)
+    except Exception:
+        pass
+
+
 class AddAdminFSM(StatesGroup):
     telegram_id = State()
 
@@ -19,14 +50,14 @@ class AddAdminFSM(StatesGroup):
 @router.callback_query(F.data == "menu:admin")
 async def cb_admin(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
     await callback.message.edit_text(
         "\u2699\ufe0f <b>\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0438 \u0430\u0434\u043c\u0438\u043d\u043a\u0430</b>",
         reply_markup=admin_kb(),
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Admin List ===
@@ -34,7 +65,7 @@ async def cb_admin(callback: CallbackQuery):
 @router.callback_query(F.data == "adm:list")
 async def cb_admin_list(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     admins = await db.get_admins()
@@ -62,7 +93,7 @@ async def cb_admin_list(callback: CallbackQuery):
     await callback.message.edit_text(
         text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons), parse_mode="HTML"
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Add Admin ===
@@ -70,7 +101,7 @@ async def cb_admin_list(callback: CallbackQuery):
 @router.callback_query(F.data == "adm:add")
 async def cb_add_admin(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("\u26d4 \u0422\u043e\u043b\u044c\u043a\u043e \u0433\u043b\u0430\u0432\u043d\u044b\u0439 \u0430\u0434\u043c\u0438\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4 \u0422\u043e\u043b\u044c\u043a\u043e \u0433\u043b\u0430\u0432\u043d\u044b\u0439 \u0430\u0434\u043c\u0438\u043d", show_alert=True)
         return
 
     await callback.message.edit_text(
@@ -79,8 +110,9 @@ async def cb_add_admin(callback: CallbackQuery, state: FSMContext):
         "(\u0443\u0437\u043d\u0430\u0442\u044c \u043c\u043e\u0436\u043d\u043e \u0443 @userinfobot)",
         parse_mode="HTML",
     )
+    await state.update_data(_bot_msg_id=callback.message.message_id)
     await state.set_state(AddAdminFSM.telegram_id)
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 @router.message(AddAdminFSM.telegram_id)
@@ -88,11 +120,11 @@ async def fsm_add_admin(message: Message, state: FSMContext):
     try:
         tid = int(message.text.strip())
     except ValueError:
-        await message.answer("\u274c \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0447\u0438\u0441\u043b\u043e\u0432\u043e\u0439 ID!")
+        await _delete_msg(message)
         return
 
     await db.add_admin(tid)
-    await message.answer(
+    await _edit_bot_msg(message, state,
         f"\u2705 \u0410\u0434\u043c\u0438\u043d <code>{tid}</code> \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d!",
         reply_markup=back_kb("adm:list"),
         parse_mode="HTML",
@@ -106,7 +138,7 @@ async def fsm_add_admin(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("adm:remove:"))
 async def cb_remove_admin(callback: CallbackQuery):
     if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("\u26d4 \u0422\u043e\u043b\u044c\u043a\u043e \u0433\u043b\u0430\u0432\u043d\u044b\u0439 \u0430\u0434\u043c\u0438\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4 \u0422\u043e\u043b\u044c\u043a\u043e \u0433\u043b\u0430\u0432\u043d\u044b\u0439 \u0430\u0434\u043c\u0438\u043d", show_alert=True)
         return
 
     tid = int(callback.data.split(":")[2])
@@ -117,7 +149,7 @@ async def cb_remove_admin(callback: CallbackQuery):
         parse_mode="HTML",
     )
     await db.log_action(callback.from_user.id, "remove_admin", str(tid))
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Notifications Settings ===
@@ -125,7 +157,7 @@ async def cb_remove_admin(callback: CallbackQuery):
 @router.callback_query(F.data == "adm:notifications")
 async def cb_notifications(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     monitor_enabled = await db.get_setting("monitor_enabled", "1")
@@ -152,13 +184,13 @@ async def cb_notifications(callback: CallbackQuery):
         reply_markup=kb,
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 @router.callback_query(F.data.startswith("adm:toggle:"))
 async def cb_toggle_setting(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     key = callback.data.split(":")[2]
@@ -175,7 +207,7 @@ async def cb_toggle_setting(callback: CallbackQuery):
 @router.callback_query(F.data == "adm:logs")
 async def cb_logs(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     logs = await db.get_logs(limit=20)
@@ -185,7 +217,7 @@ async def cb_logs(callback: CallbackQuery):
             reply_markup=back_kb("menu:admin"),
             parse_mode="HTML",
         )
-        await callback.answer()
+        await _safe_callback_answer(callback)
         return
 
     text = "\U0001f4cb <b>\u041b\u043e\u0433\u0438 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439</b>\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n"
@@ -196,7 +228,7 @@ async def cb_logs(callback: CallbackQuery):
     await callback.message.edit_text(
         text, reply_markup=back_kb("menu:admin"), parse_mode="HTML"
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Export ===
@@ -204,7 +236,7 @@ async def cb_logs(callback: CallbackQuery):
 @router.callback_query(F.data == "adm:export")
 async def cb_export(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     servers = await db.get_servers()
@@ -222,4 +254,4 @@ async def cb_export(callback: CallbackQuery):
     await callback.message.edit_text(
         text, reply_markup=back_kb("menu:admin"), parse_mode="HTML"
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)

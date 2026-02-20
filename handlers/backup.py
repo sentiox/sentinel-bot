@@ -8,12 +8,19 @@ from services.ssh_manager import ssh_manager
 router = Router()
 
 
+async def _safe_callback_answer(callback, *args, **kwargs):
+    try:
+        await callback.answer(*args, **kwargs)
+    except Exception:
+        pass
+
+
 # === Backup Menu ===
 
 @router.callback_query(F.data == "menu:backup")
 async def cb_backup(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     servers = await db.get_servers()
@@ -24,7 +31,7 @@ async def cb_backup(callback: CallbackQuery):
             reply_markup=back_kb("menu:back"),
             parse_mode="HTML",
         )
-        await callback.answer()
+        await _safe_callback_answer(callback)
         return
 
     # If only one server — show actions directly
@@ -61,7 +68,7 @@ async def cb_backup(callback: CallbackQuery):
             reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
             parse_mode="HTML",
         )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Select Server for Backup ===
@@ -69,13 +76,13 @@ async def cb_backup(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("bkp:srv:"))
 async def cb_backup_server(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     server_id = int(callback.data.split(":")[2])
     server = await db.get_server(server_id)
     if not server:
-        await callback.answer("\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
         return
 
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -93,7 +100,7 @@ async def cb_backup_server(callback: CallbackQuery):
         reply_markup=kb,
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Execute Update ===
@@ -101,7 +108,7 @@ async def cb_backup_server(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("bkp:do:"))
 async def cb_backup_execute(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     parts = callback.data.split(":")
@@ -110,7 +117,7 @@ async def cb_backup_execute(callback: CallbackQuery):
 
     server = await db.get_server(server_id)
     if not server:
-        await callback.answer("\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
         return
 
     names = {
@@ -144,7 +151,7 @@ async def cb_backup_execute(callback: CallbackQuery):
         parse_mode="HTML",
     )
     await db.log_action(callback.from_user.id, f"update_{component}", server["name"])
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Quick backup buttons from main menu ===
@@ -155,13 +162,13 @@ async def cb_backup_execute(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("bkp:clean"))
 async def cb_quick_backup(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     # Redirect to server selection
     servers = await db.get_servers()
     if not servers:
-        await callback.answer("\u041d\u0435\u0442 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u0432", show_alert=True)
+        await _safe_callback_answer(callback, "\u041d\u0435\u0442 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u0432", show_alert=True)
         return
 
     if len(list(servers)) == 1:

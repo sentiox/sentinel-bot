@@ -10,6 +10,13 @@ from keyboards.inline import (
 
 router = Router()
 
+
+async def _safe_callback_answer(callback, *args, **kwargs):
+    try:
+        await callback.answer(*args, **kwargs)
+    except Exception:
+        pass
+
 WELCOME_TEXT = (
     "\U0001f6e1 <b>Sentinel Bot</b>\n"
     "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
@@ -117,7 +124,7 @@ async def cmd_menu(message: Message):
 @router.callback_query(F.data == "menu:back")
 async def cb_back_to_menu(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4 \u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4 \u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d", show_alert=True)
         return
     await callback.message.edit_text(WELCOME_TEXT, reply_markup=main_menu_kb(), parse_mode="HTML")
-    await callback.answer()
+    await _safe_callback_answer(callback)

@@ -11,6 +11,37 @@ from utils.formatters import format_money, format_payment_reminder
 router = Router()
 
 
+async def _delete_msg(message: Message):
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+
+async def _edit_bot_msg(message: Message, state: FSMContext, text: str, **kwargs):
+    """Delete user message and edit the stored bot message."""
+    await _delete_msg(message)
+    data = await state.get_data()
+    bot_msg_id = data.get("_bot_msg_id")
+    if bot_msg_id:
+        try:
+            await message.bot.edit_message_text(
+                text=text, chat_id=message.chat.id, message_id=bot_msg_id, **kwargs
+            )
+            return
+        except Exception:
+            pass
+    msg = await message.answer(text, **kwargs)
+    await state.update_data(_bot_msg_id=msg.message_id)
+
+
+async def _safe_callback_answer(callback: CallbackQuery, *args, **kwargs):
+    try:
+        await callback.answer(*args, **kwargs)
+    except Exception:
+        pass
+
+
 class AddPaymentFSM(StatesGroup):
     server = State()
     description = State()
@@ -28,7 +59,7 @@ class EditPaymentFSM(StatesGroup):
 @router.callback_query(F.data == "menu:payments")
 async def cb_payments(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
     await callback.message.edit_text(
         "\U0001f4b0 <b>\u041e\u043f\u043b\u0430\u0442\u0430 VPS</b>\n\n"
@@ -36,7 +67,7 @@ async def cb_payments(callback: CallbackQuery):
         reply_markup=payments_kb(),
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Payment List ===
@@ -44,7 +75,7 @@ async def cb_payments(callback: CallbackQuery):
 @router.callback_query(F.data == "pay:list")
 async def cb_payment_list(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     payments = await db.get_payments(active_only=True)
@@ -54,7 +85,7 @@ async def cb_payment_list(callback: CallbackQuery):
             reply_markup=back_kb("menu:payments"),
             parse_mode="HTML",
         )
-        await callback.answer()
+        await _safe_callback_answer(callback)
         return
 
     today = datetime.now().date()
@@ -97,7 +128,7 @@ async def cb_payment_list(callback: CallbackQuery):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === View Payment ===
@@ -105,13 +136,13 @@ async def cb_payment_list(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("pay:view:"))
 async def cb_payment_view(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     payment_id = int(callback.data.split(":")[2])
     payment = await db.get_payment(payment_id)
     if not payment:
-        await callback.answer("\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
         return
 
     today = datetime.now().date()
@@ -129,7 +160,7 @@ async def cb_payment_view(callback: CallbackQuery):
     ])
 
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Confirm Paid — asks "Вы оплатили? На сколько дней?" ===
@@ -137,13 +168,13 @@ async def cb_payment_view(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("pay:confirm_paid:"))
 async def cb_confirm_paid(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     payment_id = int(callback.data.split(":")[2])
     payment = await db.get_payment(payment_id)
     if not payment:
-        await callback.answer("\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
         return
 
     text = (
@@ -169,7 +200,7 @@ async def cb_confirm_paid(callback: CallbackQuery):
     ])
 
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Renew Payment — set new due date ===
@@ -177,7 +208,7 @@ async def cb_confirm_paid(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("pay:renew:"))
 async def cb_renew_payment(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     parts = callback.data.split(":")
@@ -186,7 +217,7 @@ async def cb_renew_payment(callback: CallbackQuery):
 
     payment = await db.get_payment(payment_id)
     if not payment:
-        await callback.answer("\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
         return
 
     # New due date = today + days
@@ -217,7 +248,7 @@ async def cb_renew_payment(callback: CallbackQuery):
 
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await db.log_action(callback.from_user.id, "renew_payment", f"{payment['description']} +{days}d")
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Edit Payment Date ===
@@ -225,11 +256,11 @@ async def cb_renew_payment(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("pay:edit_date:"))
 async def cb_edit_date(callback: CallbackQuery, state: FSMContext):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     payment_id = int(callback.data.split(":")[2])
-    await state.update_data(edit_payment_id=payment_id)
+    await state.update_data(edit_payment_id=payment_id, _bot_msg_id=callback.message.message_id)
     await state.set_state(EditPaymentFSM.new_date)
 
     await callback.message.edit_text(
@@ -240,7 +271,7 @@ async def cb_edit_date(callback: CallbackQuery, state: FSMContext):
         "\u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 /cancel \u0434\u043b\u044f \u043e\u0442\u043c\u0435\u043d\u044b.",
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 @router.message(EditPaymentFSM.new_date)
@@ -248,8 +279,9 @@ async def fsm_edit_date(message: Message, state: FSMContext):
     if message.text == "/cancel":
         data = await state.get_data()
         pid = data.get("edit_payment_id", 0)
+        await _edit_bot_msg(message, state,
+            "\u274c \u041e\u0442\u043c\u0435\u043d\u0435\u043d\u043e.", reply_markup=back_kb(f"pay:view:{pid}"))
         await state.clear()
-        await message.answer("\u274c \u041e\u0442\u043c\u0435\u043d\u0435\u043d\u043e.", reply_markup=back_kb(f"pay:view:{pid}"))
         return
 
     data = await state.get_data()
@@ -268,11 +300,7 @@ async def fsm_edit_date(message: Message, state: FSMContext):
             new_due = parsed.strftime("%Y-%m-%d")
             new_due_display = text
         except ValueError:
-            await message.answer(
-                "\u274c \u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u0444\u043e\u0440\u043c\u0430\u0442!\n"
-                "\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439\u0442\u0435: <b>DD.MM.YYYY</b> \u0438\u043b\u0438 <b>+30</b>",
-                parse_mode="HTML",
-            )
+            await _delete_msg(message)
             return
 
     await db._conn.execute(
@@ -285,7 +313,7 @@ async def fsm_edit_date(message: Message, state: FSMContext):
     due = datetime.strptime(new_due, "%Y-%m-%d").date()
     days_left = (due - today).days
 
-    await message.answer(
+    await _edit_bot_msg(message, state,
         f"\u2705 <b>\u0414\u0430\u0442\u0430 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0430!</b>\n\n"
         f"\U0001f4c5 \u041d\u043e\u0432\u0430\u044f \u0434\u0430\u0442\u0430: <b>{new_due_display}</b>\n"
         f"\u23f3 \u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c: <b>{days_left} \u0434\u043d\u0435\u0439</b>",
@@ -301,14 +329,14 @@ async def fsm_edit_date(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("pay:del:"))
 async def cb_delete_payment(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
     payment_id = int(callback.data.split(":")[2])
     await callback.message.edit_text(
         "\U0001f5d1 \u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u043b\u0430\u0442\u0451\u0436?",
         reply_markup=confirm_kb("del_pay", payment_id),
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 @router.callback_query(F.data.startswith("confirm:del_pay:"))
@@ -319,7 +347,7 @@ async def cb_confirm_del_payment(callback: CallbackQuery):
         "\u2705 \u041f\u043b\u0430\u0442\u0451\u0436 \u0443\u0434\u0430\u043b\u0451\u043d.",
         reply_markup=back_kb("pay:list"),
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 @router.callback_query(F.data.startswith("cancel:del_pay:"))
@@ -329,7 +357,7 @@ async def cb_cancel_del_payment(callback: CallbackQuery):
         "\u274c \u041e\u0442\u043c\u0435\u043d\u0435\u043d\u043e.",
         reply_markup=back_kb(f"pay:view:{payment_id}"),
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Add Payment ===
@@ -337,7 +365,7 @@ async def cb_cancel_del_payment(callback: CallbackQuery):
 @router.callback_query(F.data == "pay:add")
 async def cb_add_payment(callback: CallbackQuery, state: FSMContext):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     servers = await db.get_servers()
@@ -346,7 +374,7 @@ async def cb_add_payment(callback: CallbackQuery, state: FSMContext):
             "\u26a0\ufe0f \u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0434\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0441\u0435\u0440\u0432\u0435\u0440!",
             reply_markup=back_kb("menu:payments"),
         )
-        await callback.answer()
+        await _safe_callback_answer(callback)
         return
 
     buttons = [[InlineKeyboardButton(
@@ -360,8 +388,9 @@ async def cb_add_payment(callback: CallbackQuery, state: FSMContext):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
         parse_mode="HTML",
     )
+    await state.update_data(_bot_msg_id=callback.message.message_id)
     await state.set_state(AddPaymentFSM.server)
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 @router.callback_query(F.data.startswith("pay:srv:"), AddPaymentFSM.server)
@@ -373,13 +402,13 @@ async def fsm_payment_server(callback: CallbackQuery, state: FSMContext):
         "(\u043d\u0430\u043f\u0440. \"\u0410\u0440\u0435\u043d\u0434\u0430 VPS Hetzner\")"
     )
     await state.set_state(AddPaymentFSM.description)
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 @router.message(AddPaymentFSM.description)
 async def fsm_payment_desc(message: Message, state: FSMContext):
     await state.update_data(description=message.text.strip())
-    await message.answer("\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 (\u0432 \u0440\u0443\u0431\u043b\u044f\u0445):")
+    await _edit_bot_msg(message, state, "\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 (\u0432 \u0440\u0443\u0431\u043b\u044f\u0445):")
     await state.set_state(AddPaymentFSM.amount)
 
 
@@ -388,7 +417,7 @@ async def fsm_payment_amount(message: Message, state: FSMContext):
     try:
         amount = float(message.text.strip().replace(",", "."))
     except ValueError:
-        await message.answer("\u274c \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0447\u0438\u0441\u043b\u043e!")
+        await _delete_msg(message)
         return
     await state.update_data(amount=amount)
 
@@ -407,7 +436,7 @@ async def fsm_payment_amount(message: Message, state: FSMContext):
         ],
     ])
 
-    await message.answer(
+    await _edit_bot_msg(message, state,
         "\U0001f4c5 \u041d\u0430 \u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0434\u043d\u0435\u0439?\n\n"
         "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043a\u043d\u043e\u043f\u043a\u0443 \u0438\u043b\u0438 \u0432\u0432\u0435\u0434\u0438\u0442\u0435 \u0434\u0430\u0442\u0443 \u0432\u0440\u0443\u0447\u043d\u0443\u044e:\n"
         "<b>DD.MM.YYYY</b> (\u043d\u0430\u043f\u0440. 15.03.2026)",
@@ -423,7 +452,7 @@ async def fsm_payment_quick_days(callback: CallbackQuery, state: FSMContext):
     due_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
     due_display = (datetime.now() + timedelta(days=days)).strftime("%d.%m.%Y")
     await _save_payment(callback, state, due_date, due_display, days)
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 @router.message(AddPaymentFSM.due_date)
@@ -442,7 +471,7 @@ async def fsm_payment_date(message: Message, state: FSMContext):
             due_display = text
             days = (parsed.date() - datetime.now().date()).days
         except ValueError:
-            await message.answer("\u274c \u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u0444\u043e\u0440\u043c\u0430\u0442! DD.MM.YYYY \u0438\u043b\u0438 +30")
+            await _delete_msg(message)
             return
 
     data = await state.get_data()
@@ -453,7 +482,7 @@ async def fsm_payment_date(message: Message, state: FSMContext):
         due_date=due_date,
     )
 
-    await message.answer(
+    await _edit_bot_msg(message, state,
         f"\u2705 <b>\u041f\u043b\u0430\u0442\u0451\u0436 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d!</b>\n\n"
         f"\U0001f4cb {data['description']}\n"
         f"\U0001f4b5 {format_money(data['amount'])}\n"
@@ -493,7 +522,7 @@ async def _save_payment(callback: CallbackQuery, state: FSMContext, due_date: st
 @router.callback_query(F.data == "pay:history")
 async def cb_payment_history(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     payments = await db.get_payments(active_only=False)
@@ -503,7 +532,7 @@ async def cb_payment_history(callback: CallbackQuery):
             reply_markup=back_kb("menu:payments"),
             parse_mode="HTML",
         )
-        await callback.answer()
+        await _safe_callback_answer(callback)
         return
 
     text = "\U0001f4dc <b>\u0418\u0441\u0442\u043e\u0440\u0438\u044f \u043f\u043b\u0430\u0442\u0435\u0436\u0435\u0439</b>\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n"
@@ -514,4 +543,4 @@ async def cb_payment_history(callback: CallbackQuery):
     await callback.message.edit_text(
         text, reply_markup=back_kb("menu:payments"), parse_mode="HTML"
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)

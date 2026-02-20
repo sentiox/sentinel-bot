@@ -9,12 +9,19 @@ from utils.formatters import format_server_status
 router = Router()
 
 
+async def _safe_callback_answer(callback: CallbackQuery, *args, **kwargs):
+    try:
+        await callback.answer(*args, **kwargs)
+    except Exception:
+        pass
+
+
 # === Monitoring Menu ===
 
 @router.callback_query(F.data == "menu:monitoring")
 async def cb_monitoring(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     servers = await db.get_servers()
@@ -26,7 +33,7 @@ async def cb_monitoring(callback: CallbackQuery):
             reply_markup=back_kb("menu:back"),
             parse_mode="HTML",
         )
-        await callback.answer()
+        await _safe_callback_answer(callback)
         return
 
     await callback.message.edit_text(
@@ -35,7 +42,7 @@ async def cb_monitoring(callback: CallbackQuery):
         reply_markup=monitoring_kb(list(servers)),
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Server Monitoring ===
@@ -43,13 +50,13 @@ async def cb_monitoring(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("mon:server:"))
 async def cb_monitor_server(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     server_id = int(callback.data.split(":")[2])
     server = await db.get_server(server_id)
     if not server:
-        await callback.answer("\u0421\u0435\u0440\u0432\u0435\u0440 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u0421\u0435\u0440\u0432\u0435\u0440 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
         return
 
     await callback.message.edit_text("\u23f3 \u0421\u0431\u043e\u0440 \u043c\u0435\u0442\u0440\u0438\u043a...")
@@ -62,7 +69,7 @@ async def cb_monitor_server(callback: CallbackQuery):
         reply_markup=monitoring_server_kb(server_id),
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
 
 
 # === Refresh Single ===
@@ -70,16 +77,16 @@ async def cb_monitor_server(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("mon:refresh:"))
 async def cb_refresh_server(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     server_id = int(callback.data.split(":")[2])
     server = await db.get_server(server_id)
     if not server:
-        await callback.answer("\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
         return
 
-    await callback.answer("\U0001f504 \u041e\u0431\u043d\u043e\u0432\u043b\u044f\u044e...")
+    await _safe_callback_answer(callback, "\U0001f504 \u041e\u0431\u043d\u043e\u0432\u043b\u044f\u044e...")
     metrics = await monitoring_service.collect_server(server_id)
     text = format_server_status(dict(server), metrics)
 
@@ -95,10 +102,10 @@ async def cb_refresh_server(callback: CallbackQuery):
 @router.callback_query(F.data == "mon:refresh_all")
 async def cb_refresh_all(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
-    await callback.answer("\U0001f504 \u041e\u0431\u043d\u043e\u0432\u043b\u044f\u044e \u0432\u0441\u0435 \u0441\u0435\u0440\u0432\u0435\u0440\u0430...")
+    await _safe_callback_answer(callback, "\U0001f504 \u041e\u0431\u043d\u043e\u0432\u043b\u044f\u044e \u0432\u0441\u0435 \u0441\u0435\u0440\u0432\u0435\u0440\u0430...")
     results = await monitoring_service.collect_all()
     servers = await db.get_servers()
 
@@ -132,13 +139,13 @@ async def cb_refresh_all(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("srv:monitor:"))
 async def cb_srv_monitor(callback: CallbackQuery):
     if not await db.is_admin(callback.from_user.id):
-        await callback.answer("\u26d4", show_alert=True)
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
 
     server_id = int(callback.data.split(":")[2])
     server = await db.get_server(server_id)
     if not server:
-        await callback.answer("\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
+        await _safe_callback_answer(callback, "\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d", show_alert=True)
         return
 
     await callback.message.edit_text("\u23f3 \u0421\u0431\u043e\u0440 \u043c\u0435\u0442\u0440\u0438\u043a...")
@@ -150,4 +157,4 @@ async def cb_srv_monitor(callback: CallbackQuery):
         reply_markup=monitoring_server_kb(server_id),
         parse_mode="HTML",
     )
-    await callback.answer()
+    await _safe_callback_answer(callback)
