@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message, ForceReply
+from aiogram.types import CallbackQuery, Message, ForceReply, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -52,6 +52,12 @@ async def _safe_callback_answer(callback: CallbackQuery, *args, **kwargs):
 async def _send_topic_force_reply(msg: Message, text: str):
     if msg.chat.id < 0:
         await msg.answer(text, reply_markup=ForceReply(selective=True))
+
+
+def _fsm_cancel_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="\u274c \u041e\u0442\u043c\u0435\u043d\u0430", callback_data="bal:fsm_cancel")]
+    ])
 
 
 # === Balance Menu ===
@@ -110,6 +116,7 @@ async def cb_balance_operation(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text(
         f"{op_name}\n\n\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 (\u0432 \u0440\u0443\u0431\u043b\u044f\u0445):",
+        reply_markup=_fsm_cancel_kb(),
     )
     await _send_topic_force_reply(callback.message, "\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 \u043e\u0442\u0432\u0435\u0442\u043e\u043c \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
     await _safe_callback_answer(callback)
@@ -139,9 +146,24 @@ async def fsm_balance_amount(message: Message, state: FSMContext):
 
     await state.update_data(amount=amount)
     await _edit_bot_msg(message, state,
-        "\U0001f4dd \u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 (\u0438\u043b\u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 - \u0434\u043b\u044f \u043f\u0440\u043e\u043f\u0443\u0441\u043a\u0430):")
+        "\U0001f4dd \u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 (\u0438\u043b\u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 - \u0434\u043b\u044f \u043f\u0440\u043e\u043f\u0443\u0441\u043a\u0430):",
+        reply_markup=_fsm_cancel_kb(),
+    )
     await _send_topic_force_reply(message, "\U0001f4dd \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043e\u0442\u0432\u0435\u0442\u043e\u043c \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
     await state.set_state(BalanceOpFSM.description)
+
+
+@router.callback_query(F.data == "bal:fsm_cancel")
+async def cb_balance_fsm_cancel(callback: CallbackQuery, state: FSMContext):
+    if not await db.is_admin(callback.from_user.id):
+        await _safe_callback_answer(callback, "\u26d4", show_alert=True)
+        return
+    await state.clear()
+    await callback.message.edit_text(
+        "\u274c \u041e\u0442\u043c\u0435\u043d\u0435\u043d\u043e.",
+        reply_markup=back_kb("menu:balance"),
+    )
+    await _safe_callback_answer(callback)
 
 
 @router.message(BalanceOpFSM.description)
