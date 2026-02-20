@@ -2,7 +2,10 @@
 
 # Auto-relaunch with bash if running under sh/dash
 if [ -z "$BASH_VERSION" ]; then
-    exec bash "$0" "$@"
+    _tmp=$(mktemp /tmp/sentinel-install.XXXXXX)
+    wget -qO "$_tmp" "https://raw.githubusercontent.com/sentiox/sentinel-bot/main/install.sh" 2>/dev/null || \
+    curl -fsSL -o "$_tmp" "https://raw.githubusercontent.com/sentiox/sentinel-bot/main/install.sh" 2>/dev/null
+    exec bash "$_tmp"
 fi
 
 # ============================================

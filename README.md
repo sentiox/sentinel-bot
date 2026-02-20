@@ -5,7 +5,7 @@ Telegram-бот для управления VPS серверами, монито
 ## Установка
 
 ```bash
-sh <(wget -qO- https://raw.githubusercontent.com/sentiox/sentinel-bot/main/install.sh)
+bash <(wget -qO- https://raw.githubusercontent.com/sentiox/sentinel-bot/main/install.sh)
 ```
 
 Установщик автоматически:
