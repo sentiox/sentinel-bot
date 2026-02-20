@@ -42,6 +42,7 @@ async def on_startup(bot: Bot):
 
     me = await bot.get_me()
     logger.info(f"Bot started: @{me.username} ({me.id})")
+    privacy_enabled = not bool(getattr(me, "can_read_all_group_messages", False))
 
     # Notify admins
     for aid in ADMIN_IDS:
@@ -53,6 +54,15 @@ async def on_startup(bot: Bot):
                 "\u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 /start \u0434\u043b\u044f \u043d\u0430\u0447\u0430\u043b\u0430 \u0440\u0430\u0431\u043e\u0442\u044b.",
                 parse_mode="HTML",
             )
+            if GROUP_ID and privacy_enabled:
+                await send_message_safe(
+                    bot,
+                    aid,
+                    "\u26a0\ufe0f <b>Privacy mode \u0432\u043a\u043b\u044e\u0447\u0451\u043d</b>\n\n"
+                    "\u0412 \u0433\u0440\u0443\u043f\u043f\u0435 \u0431\u043e\u0442 \u0432\u0438\u0434\u0438\u0442 \u043d\u0435 \u0432\u0441\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u044f.\n"
+                    "\u0414\u043b\u044f \u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u043e\u0439 FSM \u043b\u0443\u0447\u0448\u0435 \u043e\u0442\u043a\u043b\u044e\u0447\u0438\u0442\u044c: @BotFather \u2192 /setprivacy \u2192 Disable.",
+                    parse_mode="HTML",
+                )
         except Exception:
             pass
 

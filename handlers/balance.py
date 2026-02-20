@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ForceReply
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -47,6 +47,12 @@ async def _safe_callback_answer(callback: CallbackQuery, *args, **kwargs):
         await callback.answer(*args, **kwargs)
     except Exception:
         pass
+
+
+def _topic_force_reply(chat_id: int):
+    if chat_id < 0:
+        return ForceReply(selective=True)
+    return None
 
 
 # === Balance Menu ===
@@ -105,6 +111,7 @@ async def cb_balance_operation(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text(
         f"{op_name}\n\n\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 (\u0432 \u0440\u0443\u0431\u043b\u044f\u0445):",
+        reply_markup=_topic_force_reply(callback.message.chat.id),
     )
     await _safe_callback_answer(callback)
 
@@ -123,7 +130,8 @@ async def fsm_balance_amount(message: Message, state: FSMContext):
 
     await state.update_data(amount=amount)
     await _edit_bot_msg(message, state,
-        "\U0001f4dd \u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 (\u0438\u043b\u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 - \u0434\u043b\u044f \u043f\u0440\u043e\u043f\u0443\u0441\u043a\u0430):")
+        "\U0001f4dd \u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 (\u0438\u043b\u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 - \u0434\u043b\u044f \u043f\u0440\u043e\u043f\u0443\u0441\u043a\u0430):",
+        reply_markup=_topic_force_reply(message.chat.id))
     await state.set_state(BalanceOpFSM.description)
 
 
