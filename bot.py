@@ -12,7 +12,7 @@ from config import BOT_TOKEN, GROUP_ID, ADMIN_IDS
 from database import db
 from handlers import get_all_routers
 from services.scheduler import init_scheduler
-from utils.telegram_safe import send_message_safe
+from utils.telegram_safe import send_message_safe, patch_aiogram_message_edit_text
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,6 +66,8 @@ async def main():
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not set! Check .env file.")
         sys.exit(1)
+
+    patch_aiogram_message_edit_text()
 
     Path("data").mkdir(exist_ok=True)
 
