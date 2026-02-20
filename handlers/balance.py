@@ -49,9 +49,23 @@ async def _safe_callback_answer(callback: CallbackQuery, *args, **kwargs):
         pass
 
 
-async def _send_topic_force_reply(msg: Message, text: str):
+async def _clear_topic_prompt(msg: Message, state: FSMContext):
+    data = await state.get_data()
+    prompt_id = data.get("_topic_prompt_id")
+    if not prompt_id:
+        return
+    try:
+        await msg.bot.delete_message(chat_id=msg.chat.id, message_id=prompt_id)
+    except Exception:
+        pass
+    await state.update_data(_topic_prompt_id=None)
+
+
+async def _send_topic_force_reply(msg: Message, state: FSMContext, text: str):
     if msg.chat.id < 0:
-        await msg.answer(text, reply_markup=ForceReply(selective=True))
+        await _clear_topic_prompt(msg, state)
+        prompt = await msg.answer(text, reply_markup=ForceReply(selective=True))
+        await state.update_data(_topic_prompt_id=prompt.message_id)
 
 
 def _fsm_cancel_kb() -> InlineKeyboardMarkup:
@@ -118,13 +132,14 @@ async def cb_balance_operation(callback: CallbackQuery, state: FSMContext):
         f"{op_name}\n\n\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 (\u0432 \u0440\u0443\u0431\u043b\u044f\u0445):",
         reply_markup=_fsm_cancel_kb(),
     )
-    await _send_topic_force_reply(callback.message, "\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 \u043e\u0442\u0432\u0435\u0442\u043e\u043c \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
+    await _send_topic_force_reply(callback.message, state, "\U0001f4b5 \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0443\u043c\u043c\u0443 \u043e\u0442\u0432\u0435\u0442\u043e\u043c \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
     await _safe_callback_answer(callback)
 
 
 @router.message(BalanceOpFSM.amount)
 async def fsm_balance_amount(message: Message, state: FSMContext):
     if message.text and message.text.strip() == "/cancel":
+        await _clear_topic_prompt(message, state)
         await _edit_bot_msg(
             message,
             state,
@@ -149,7 +164,7 @@ async def fsm_balance_amount(message: Message, state: FSMContext):
         "\U0001f4dd \u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 (\u0438\u043b\u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 - \u0434\u043b\u044f \u043f\u0440\u043e\u043f\u0443\u0441\u043a\u0430):",
         reply_markup=_fsm_cancel_kb(),
     )
-    await _send_topic_force_reply(message, "\U0001f4dd \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043e\u0442\u0432\u0435\u0442\u043e\u043c \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
+    await _send_topic_force_reply(message, state, "\U0001f4dd \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043e\u0442\u0432\u0435\u0442\u043e\u043c \u043d\u0430 \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.")
     await state.set_state(BalanceOpFSM.description)
 
 
@@ -158,6 +173,7 @@ async def cb_balance_fsm_cancel(callback: CallbackQuery, state: FSMContext):
     if not await db.is_admin(callback.from_user.id):
         await _safe_callback_answer(callback, "\u26d4", show_alert=True)
         return
+    await _clear_topic_prompt(callback.message, state)
     await state.clear()
     await callback.message.edit_text(
         "\u274c \u041e\u0442\u043c\u0435\u043d\u0435\u043d\u043e.",
@@ -169,6 +185,7 @@ async def cb_balance_fsm_cancel(callback: CallbackQuery, state: FSMContext):
 @router.message(BalanceOpFSM.description)
 async def fsm_balance_desc(message: Message, state: FSMContext):
     if message.text and message.text.strip() == "/cancel":
+        await _clear_topic_prompt(message, state)
         await _edit_bot_msg(
             message,
             state,
@@ -199,6 +216,7 @@ async def fsm_balance_desc(message: Message, state: FSMContext):
         text += f"\U0001f4dd {desc}\n"
 
     await _edit_bot_msg(message, state, text, reply_markup=back_kb("menu:balance"), parse_mode="HTML")
+    await _clear_topic_prompt(message, state)
     await db.log_action(
         message.from_user.id, f"balance_{data['op_type']}", f"{data['amount']} - {desc}"
     )
