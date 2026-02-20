@@ -117,6 +117,16 @@ async def cb_balance_operation(callback: CallbackQuery, state: FSMContext):
 
 @router.message(BalanceOpFSM.amount)
 async def fsm_balance_amount(message: Message, state: FSMContext):
+    if message.text and message.text.strip() == "/cancel":
+        await _edit_bot_msg(
+            message,
+            state,
+            "\u274c \u041e\u0442\u043c\u0435\u043d\u0435\u043d\u043e.",
+            reply_markup=back_kb("menu:balance"),
+        )
+        await state.clear()
+        return
+
     try:
         amount = float(message.text.strip().replace(",", "."))
     except ValueError:
@@ -136,6 +146,16 @@ async def fsm_balance_amount(message: Message, state: FSMContext):
 
 @router.message(BalanceOpFSM.description)
 async def fsm_balance_desc(message: Message, state: FSMContext):
+    if message.text and message.text.strip() == "/cancel":
+        await _edit_bot_msg(
+            message,
+            state,
+            "\u274c \u041e\u0442\u043c\u0435\u043d\u0435\u043d\u043e.",
+            reply_markup=back_kb("menu:balance"),
+        )
+        await state.clear()
+        return
+
     data = await state.get_data()
     desc = message.text.strip() if message.text.strip() != "-" else None
 
