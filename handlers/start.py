@@ -54,6 +54,20 @@ async def cmd_start(message: Message):
     await message.answer(WELCOME_TEXT, reply_markup=main_menu_kb(), parse_mode="HTML")
 
 
+@router.message(Command("reset_topics"))
+async def cmd_reset_topics(message: Message):
+    """Clear saved topic IDs so /setup_topics creates them fresh."""
+    if not await db.is_admin(message.from_user.id):
+        await message.answer("\u26d4 \u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d.")
+        return
+    for key, _, _ in TOPIC_CONFIG:
+        await db.set_setting(f"topic_{key}", "")
+    await message.answer(
+        "\U0001f5d1 \u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0442\u043e\u043f\u0438\u043a\u043e\u0432 \u0441\u0431\u0440\u043e\u0448\u0435\u043d\u044b.\n"
+        "\u0422\u0435\u043f\u0435\u0440\u044c \u0432\u044b\u043f\u043e\u043b\u043d\u0438\u0442\u0435 /setup_topics \u0434\u043b\u044f \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u044f \u043d\u043e\u0432\u044b\u0445."
+    )
+
+
 @router.message(Command("setup_topics"))
 async def cmd_setup_topics(message: Message):
     if not await db.is_admin(message.from_user.id):
@@ -70,25 +84,25 @@ async def cmd_setup_topics(message: Message):
     status = await message.answer("\u23f3 \u041f\u0440\u043e\u0432\u0435\u0440\u044f\u044e \u0442\u043e\u043f\u0438\u043a\u0438...")
 
     created = 0
+    skipped = 0
     for key, name, icon in TOPIC_CONFIG:
         existing_id = await db.get_setting(f"topic_{key}")
 
-        # If topic ID is saved, verify it's still alive in Telegram
+        # If topic ID is saved, verify it's still alive by sending a test message
         if existing_id:
             try:
-                await message.bot.send_chat_action(
+                test_msg = await message.bot.send_message(
                     chat_id=chat_id,
                     message_thread_id=int(existing_id),
-                    action="typing",
+                    text="\u2705",
                 )
+                await test_msg.delete()
+                skipped += 1
                 continue  # Topic exists and is alive, skip
             except Exception:
-                # Topic ID is stale (deleted or from another group), clear it
+                # Topic is gone, clear stale ID
                 await db.set_setting(f"topic_{key}", "")
-                existing_id = None
 
-        # Try to find topic by scanning recent forum_topic_created service messages
-        # (not available via API), so just create a new one
         try:
             topic = await message.bot.create_forum_topic(
                 chat_id=chat_id,
@@ -119,12 +133,11 @@ async def cmd_setup_topics(message: Message):
         except Exception as e:
             await message.answer(f"\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u0438 \u0442\u043e\u043f\u0438\u043a\u0430 '{name}': {e}")
 
-    existing_count = len(TOPIC_CONFIG) - created
     parts = []
     if created:
         parts.append(f"\u0441\u043e\u0437\u0434\u0430\u043d\u043e: {created}")
-    if existing_count:
-        parts.append(f"\u0443\u0436\u0435 \u0431\u044b\u043b\u043e: {existing_count}")
+    if skipped:
+        parts.append(f"\u0443\u0436\u0435 \u0431\u044b\u043b\u043e: {skipped}")
 
     await status.edit_text(
         f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e! \u0422\u043e\u043f\u0438\u043a\u043e\u0432 {', '.join(parts)}.\n\n"
